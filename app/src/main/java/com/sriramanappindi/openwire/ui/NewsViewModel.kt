@@ -44,6 +44,13 @@ data class CompareState(
     val message: String? = null
 )
 
+/** Result of asking "how are other outlets in this same region framing this story?" */
+data class FramingState(
+    val sourceStory: Story? = null,
+    val matches: List<Story> = emptyList(),
+    val message: String? = null
+)
+
 class NewsViewModel(
     private val repository: NewsRepository,
     private val appContext: Context
@@ -54,6 +61,9 @@ class NewsViewModel(
 
     private val _compare = MutableStateFlow(CompareState())
     val compare: StateFlow<CompareState> = _compare.asStateFlow()
+
+    private val _framing = MutableStateFlow(FramingState())
+    val framing: StateFlow<FramingState> = _framing.asStateFlow()
 
     private val savedStore = SavedStore(appContext)
     private val _saved = MutableStateFlow(savedStore.load())
@@ -193,6 +203,34 @@ class NewsViewModel(
 
     fun clearCompare() {
         _compare.update { CompareState() }
+    }
+
+    /**
+     * "Other sources, same region": looks only at what's already loaded
+     * (no fetch) for other outlets in the story's own region covering the
+     * same event — a framing-diff view rather than a cross-border one.
+     * Most countries only have one Google News-backed source right now, so
+     * this mainly surfaces matches for the hand-curated regions (Global,
+     * UK, India, US, Canada, Australia) where more than one outlet feeds
+     * in; elsewhere it honestly reports there's nothing else to compare.
+     */
+    fun framingDiff(story: Story) {
+        val matches = StoryMatcher.sameCountryOtherSources(story, _state.value.stories)
+        _framing.update {
+            FramingState(
+                sourceStory = story,
+                matches = matches,
+                message = if (matches.isEmpty()) {
+                    "No other loaded source is covering this one yet."
+                } else {
+                    null
+                }
+            )
+        }
+    }
+
+    fun clearFraming() {
+        _framing.update { FramingState() }
     }
 
     fun isSaved(storyId: String): Boolean = _saved.value.any { it.id == storyId }

@@ -77,6 +77,7 @@ import kotlinx.coroutines.launch
 fun MainScreen(viewModel: NewsViewModel) {
     val state by viewModel.state.collectAsState()
     val compareState by viewModel.compare.collectAsState()
+    val framingState by viewModel.framing.collectAsState()
     val savedStories by viewModel.saved.collectAsState()
     val context = LocalContext.current
     val filtered = viewModel.filtered(state)
@@ -268,6 +269,7 @@ fun MainScreen(viewModel: NewsViewModel) {
                                         context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(story.link)))
                                     },
                                     onCompare = { viewModel.compareCoverage(story) },
+                                    onFramingDiff = { viewModel.framingDiff(story) },
                                     onToggleSave = { viewModel.toggleSaved(story) },
                                     onShare = {
                                         val sendIntent = Intent(Intent.ACTION_SEND).apply {
@@ -290,6 +292,14 @@ fun MainScreen(viewModel: NewsViewModel) {
             compareState = compareState,
             onOpen = { link -> context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(link))) },
             onDismiss = viewModel::clearCompare
+        )
+    }
+
+    if (framingState.sourceStory != null) {
+        FramingDiffDialog(
+            framingState = framingState,
+            onOpen = { link -> context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(link))) },
+            onDismiss = viewModel::clearFraming
         )
     }
 }
@@ -521,43 +531,91 @@ private fun CompareCoverageDialog(
                         )
                     }
                     else -> {
-                        LazyColumn(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                            items(compareState.matches, key = { it.id }) { match ->
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .clip(RoundedCornerShape(12.dp))
-                                        .clickable { onOpen(match.link) }
-                                        .padding(vertical = 10.dp, horizontal = 10.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    if (!match.imageUrl.isNullOrBlank()) {
-                                        AsyncImage(
-                                            model = match.imageUrl,
-                                            contentDescription = null,
-                                            contentScale = ContentScale.Crop,
-                                            modifier = Modifier
-                                                .size(48.dp)
-                                                .clip(RoundedCornerShape(10.dp))
-                                        )
-                                        Spacer(Modifier.width(10.dp))
-                                    }
-                                    Column(modifier = Modifier.weight(1f)) {
-                                        Text(
-                                            "${match.region}  ·  ${match.source}",
-                                            style = MaterialTheme.typography.labelSmall,
-                                            color = MaterialTheme.colorScheme.primary
-                                        )
-                                        Text(
-                                            match.title,
-                                            style = MaterialTheme.typography.bodyMedium,
-                                            modifier = Modifier.padding(top = 3.dp)
-                                        )
-                                    }
-                                }
-                            }
-                        }
+                        MatchList(matches = compareState.matches, onOpen = onOpen)
                     }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun FramingDiffDialog(
+    framingState: FramingState,
+    onOpen: (String) -> Unit,
+    onDismiss: () -> Unit
+) {
+    val source = framingState.sourceStory ?: return
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(
+            shape = RoundedCornerShape(20.dp),
+            color = MaterialTheme.colorScheme.surfaceVariant,
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(max = 520.dp)
+        ) {
+            Column(modifier = Modifier.padding(20.dp)) {
+                Text(
+                    "🔁  Other sources in ${source.region}",
+                    style = MaterialTheme.typography.titleMedium
+                )
+                Text(
+                    source.title,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 8.dp, bottom = 14.dp)
+                )
+
+                if (framingState.matches.isEmpty()) {
+                    Text(
+                        framingState.message ?: "No other loaded source is covering this one yet.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(vertical = 20.dp)
+                    )
+                } else {
+                    MatchList(matches = framingState.matches, onOpen = onOpen)
+                }
+            }
+        }
+    }
+}
+
+/** The shared "here's who else has this" list used by both Compare coverage and Other sources. */
+@Composable
+private fun MatchList(matches: List<Story>, onOpen: (String) -> Unit) {
+    LazyColumn(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        items(matches, key = { it.id }) { match ->
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .clickable { onOpen(match.link) }
+                    .padding(vertical = 10.dp, horizontal = 10.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                if (!match.imageUrl.isNullOrBlank()) {
+                    AsyncImage(
+                        model = match.imageUrl,
+                        contentDescription = null,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier
+                            .size(48.dp)
+                            .clip(RoundedCornerShape(10.dp))
+                    )
+                    Spacer(Modifier.width(10.dp))
+                }
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        "${match.region}  ·  ${match.source}",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    Text(
+                        match.title,
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.padding(top = 3.dp)
+                    )
                 }
             }
         }
@@ -570,6 +628,7 @@ private fun StoryCard(
     isSaved: Boolean,
     onClick: () -> Unit,
     onCompare: () -> Unit,
+    onFramingDiff: () -> Unit,
     onToggleSave: () -> Unit,
     onShare: () -> Unit
 ) {
@@ -656,6 +715,20 @@ private fun StoryCard(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.clickable(onClick = onCompare)
                 )
+                Text(
+                    "🔁  Other sources",
+                    style = MaterialTheme.typography.bodySmall,
+                    fontWeight = FontWeight.Medium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.clickable(onClick = onFramingDiff)
+                )
+            }
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(20.dp)
+            ) {
                 Text(
                     if (isSaved) "✅  Saved" else "🔖  Save",
                     style = MaterialTheme.typography.bodySmall,
