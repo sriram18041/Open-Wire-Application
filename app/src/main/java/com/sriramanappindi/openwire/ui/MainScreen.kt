@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -114,6 +115,10 @@ fun MainScreen(viewModel: NewsViewModel) {
         drawerState = drawerState,
         drawerContent = {
             ModalDrawerSheet(drawerContainerColor = MaterialTheme.colorScheme.background) {
+                Column(
+                    modifier = Modifier
+                        .verticalScroll(androidx.compose.foundation.rememberScrollState())
+                ) {
                 Text(
                     "Open Wire",
                     style = MaterialTheme.typography.titleLarge,
@@ -193,6 +198,7 @@ fun MainScreen(viewModel: NewsViewModel) {
                     shape = RoundedCornerShape(12.dp),
                     modifier = Modifier.padding(horizontal = 12.dp, vertical = 3.dp)
                 )
+                }
             }
         }
     ) {
