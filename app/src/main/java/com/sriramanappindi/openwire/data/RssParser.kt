@@ -18,7 +18,11 @@ object RssParser {
         return try {
             val factory = DocumentBuilderFactory.newInstance().apply {
                 isNamespaceAware = false
-                setFeature("http://apache.org/xml/features/nonvalidating/load-external-dtd", false)
+                // Not every XML parser implementation (notably Android's) supports this
+                // Xerces-specific feature flag, so setting it must not be allowed to crash
+                // the parse — it's a defense-in-depth hardening step, not a requirement.
+                runCatching { setFeature("http://apache.org/xml/features/nonvalidating/load-external-dtd", false) }
+                setExpandEntityReferences(false)
             }
             val doc = factory.newDocumentBuilder().parse(input)
             val items = doc.getElementsByTagName("item")
