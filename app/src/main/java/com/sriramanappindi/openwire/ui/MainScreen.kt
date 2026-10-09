@@ -44,6 +44,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
@@ -72,6 +73,8 @@ import java.text.SimpleDateFormat
 import java.util.Locale
 import kotlinx.coroutines.launch
 
+private const val PRIVACY_POLICY_URL = "https://claude.ai/artifact/5zjf1W5UwVAbLzRd6vrBEX"
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MainScreen(viewModel: NewsViewModel) {
@@ -86,6 +89,7 @@ fun MainScreen(viewModel: NewsViewModel) {
     val scope = rememberCoroutineScope()
     val listState = rememberLazyListState()
     var showSaved by remember { mutableStateOf(false) }
+    var showSettings by remember { mutableStateOf(false) }
 
     val displayedStories = if (showSaved) {
         val q = state.query.trim().lowercase()
@@ -171,6 +175,24 @@ fun MainScreen(viewModel: NewsViewModel) {
                         modifier = Modifier.padding(horizontal = 12.dp, vertical = 3.dp)
                     )
                 }
+
+                androidx.compose.material3.HorizontalDivider(
+                    modifier = Modifier.padding(vertical = 12.dp, horizontal = 20.dp),
+                    color = MaterialTheme.colorScheme.outlineVariant
+                )
+
+                NavigationDrawerItem(
+                    selected = false,
+                    icon = { Text("⚙️", fontSize = 18.sp) },
+                    label = { Text("Settings", style = MaterialTheme.typography.bodyMedium) },
+                    onClick = {
+                        showSettings = true
+                        scope.launch { drawerState.close() }
+                    },
+                    colors = drawerItemColors(),
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 3.dp)
+                )
             }
         }
     ) {
@@ -300,6 +322,17 @@ fun MainScreen(viewModel: NewsViewModel) {
             framingState = framingState,
             onOpen = { link -> context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(link))) },
             onDismiss = viewModel::clearFraming
+        )
+    }
+
+    if (showSettings) {
+        SettingsDialog(
+            initiallyEnabled = viewModel.notificationsEnabled(),
+            onToggleNotifications = viewModel::setNotificationsEnabled,
+            onOpenPrivacyPolicy = {
+                context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(PRIVACY_POLICY_URL)))
+            },
+            onDismiss = { showSettings = false }
         )
     }
 }
@@ -576,6 +609,71 @@ private fun FramingDiffDialog(
                 } else {
                     MatchList(matches = framingState.matches, onOpen = onOpen)
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SettingsDialog(
+    initiallyEnabled: Boolean,
+    onToggleNotifications: (Boolean) -> Unit,
+    onOpenPrivacyPolicy: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    var notificationsEnabled by remember { mutableStateOf(initiallyEnabled) }
+
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(
+            shape = RoundedCornerShape(20.dp),
+            color = MaterialTheme.colorScheme.surfaceVariant,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(modifier = Modifier.padding(20.dp)) {
+                Text(
+                    "Settings",
+                    style = MaterialTheme.typography.titleMedium,
+                    modifier = Modifier.padding(bottom = 16.dp)
+                )
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f).padding(end = 12.dp)) {
+                        Text("New story notifications", style = MaterialTheme.typography.bodyMedium)
+                        Text(
+                            "A quiet nudge when something new shows up in your feed",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(top = 2.dp)
+                        )
+                    }
+                    Switch(
+                        checked = notificationsEnabled,
+                        onCheckedChange = {
+                            notificationsEnabled = it
+                            onToggleNotifications(it)
+                        }
+                    )
+                }
+
+                androidx.compose.material3.HorizontalDivider(modifier = Modifier.padding(vertical = 18.dp))
+
+                Text(
+                    "Privacy policy",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.clickable(onClick = onOpenPrivacyPolicy)
+                )
+
+                Spacer(Modifier.height(18.dp))
+                Text(
+                    "Open Wire · version 1.0.0",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
         }
     }

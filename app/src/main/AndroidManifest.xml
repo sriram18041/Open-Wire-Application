@@ -7,6 +7,9 @@
          it also skips the precise/approximate chooser Android shows when an
          app asks for both coarse and fine together. -->
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <!-- Lets the app post the optional "new story" alert; only required on
+         Android 13+, and only ever requested if the person wants notifications on. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <application
         android:allowBackup="true"

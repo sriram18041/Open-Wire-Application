@@ -117,6 +117,11 @@ class NewsViewModel(
     /** Picking a region the app hasn't fetched yet triggers a one-off fetch of just that region's feeds. */
     fun setRegion(region: String) {
         _state.update { it.copy(region = region) }
+        // So the background notification check (which runs in its own
+        // process with no in-memory state) knows what the person was last
+        // looking at, instead of only ever checking the generic home feeds.
+        appContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            .edit().putString(KEY_LAST_REGION, region).apply()
         val alreadyLoaded = region == "All regions" ||
             _state.value.loadedRegions.contains(region) ||
             Feeds.feedsFor(region).isEmpty()
@@ -252,9 +257,21 @@ class NewsViewModel(
         }
     }
 
+    /** Whether the person wants the new-story notification (the worker itself checks this before posting). */
+    fun notificationsEnabled(): Boolean =
+        appContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            .getBoolean(KEY_NOTIFICATIONS_ENABLED, true)
+
+    fun setNotificationsEnabled(enabled: Boolean) {
+        appContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            .edit().putBoolean(KEY_NOTIFICATIONS_ENABLED, enabled).apply()
+    }
+
     companion object {
         private const val PREFS_NAME = "openwire_prefs"
         private const val KEY_INITIAL_REGION_TRIED = "initial_region_tried"
+        private const val KEY_LAST_REGION = "last_selected_region"
+        private const val KEY_NOTIFICATIONS_ENABLED = "notifications_enabled"
 
         fun factory(context: Context): ViewModelProvider.Factory = viewModelFactory {
             initializer {
