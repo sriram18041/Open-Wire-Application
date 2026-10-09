@@ -42,7 +42,18 @@ jobs:
           OPENWIRE_KEYSTORE_PASSWORD: ${{ secrets.OPENWIRE_KEYSTORE_PASSWORD }}
           OPENWIRE_KEY_ALIAS: ${{ secrets.OPENWIRE_KEY_ALIAS }}
           OPENWIRE_KEY_PASSWORD: ${{ secrets.OPENWIRE_KEY_PASSWORD }}
-        run: gradle :app:bundleRelease --no-daemon
+        run: |
+          set -o pipefail
+          if ! gradle :app:bundleRelease --no-daemon --stacktrace 2>&1 | tee "$RUNNER_TEMP/build.log"; then
+            tail -c 60000 "$RUNNER_TEMP/build.log" > "$RUNNER_TEMP/build.tail.log"
+            python3 - "$RUNNER_TEMP/build.tail.log" <<'PYEOF'
+          import sys
+          text = open(sys.argv[1], encoding="utf-8", errors="replace").read()
+          encoded = text.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
+          print(f"::error::{encoded}")
+          PYEOF
+            exit 1
+          fi
 
       - name: Build debug APK (for quick sideload testing)
         run: gradle :app:assembleDebug --no-daemon
