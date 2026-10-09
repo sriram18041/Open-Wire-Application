@@ -91,23 +91,25 @@ object Feeds {
     /** How far back Google News search should look, so feeds stay current rather than surfacing old stories. */
     private const val GOOGLE_NEWS_WINDOW = "when:7d"
 
-    private fun googleNewsSearchUrl(country: String, categoryKeyword: String): String {
-        val phrase = if (country.contains(" ")) "\"$country\"" else country
-        val query = listOfNotNull(phrase, categoryKeyword.ifBlank { null }, GOOGLE_NEWS_WINDOW)
-            .joinToString(" ")
+    private fun googleNewsSearchUrl(query: String): String {
         val encoded = java.net.URLEncoder.encode(query, "UTF-8").replace("+", "%20")
         return "https://news.google.com/rss/search?q=$encoded&hl=en-US&gl=US&ceid=US:en"
     }
 
+    private fun countryFeedQuery(country: String, categoryKeyword: String): String {
+        val phrase = if (country.contains(" ")) "\"$country\"" else country
+        return listOfNotNull(phrase, categoryKeyword.ifBlank { null }, GOOGLE_NEWS_WINDOW).joinToString(" ")
+    }
+
     private fun googleNewsFeeds(country: String, regionName: String): List<FeedSource> =
         GOOGLE_NEWS_CATEGORY_KEYWORD.map { (category, keyword) ->
-            FeedSource(googleNewsSearchUrl(country, keyword), category, regionName, "Google News")
+            FeedSource(googleNewsSearchUrl(countryFeedQuery(country, keyword)), category, regionName, "Google News")
         }
 
     /** One country's feed for a single category, or null if the category isn't searchable this way. */
     fun feedFor(category: String, country: String, regionName: String): FeedSource? {
         val keyword = GOOGLE_NEWS_CATEGORY_KEYWORD[category] ?: return null
-        return FeedSource(googleNewsSearchUrl(country, keyword), category, regionName, "Google News")
+        return FeedSource(googleNewsSearchUrl(countryFeedQuery(country, keyword)), category, regionName, "Google News")
     }
 
     /**
@@ -128,6 +130,29 @@ object Feeds {
         WORLD_LENS_COUNTRIES
             .filter { it != excludingRegion }
             .mapNotNull { name -> feedFor(category, name, name) }
+
+    /**
+     * One or two known English-language outlets actually based in or
+     * reporting from each [COMPARE_REGIONS] country. "Compare coverage"
+     * needs results that are genuinely that country's own press, not just
+     * anything mentioning the country's name, and — since most of these
+     * countries have no English edition of Google News to draw on — these
+     * are specifically outlets that publish in English natively.
+     */
+    private val COMPARE_REGION_SOURCES: Map<String, List<String>> = mapOf(
+        "United States" to listOf("apnews.com", "nbcnews.com"),
+        "UK" to listOf("bbc.com", "theguardian.com"),
+        "India" to listOf("timesofindia.indiatimes.com", "ndtv.com"),
+        "Germany" to listOf("dw.com"),
+        "France" to listOf("france24.com", "rfi.fr"),
+        "Brazil" to listOf("riotimesonline.com"),
+        "Nigeria" to listOf("premiumtimesng.com", "punchng.com"),
+        "Japan" to listOf("japantimes.co.jp", "mainichi.jp"),
+        "Australia" to listOf("abc.net.au", "smh.com.au"),
+        "Russia" to listOf("themoscowtimes.com", "tass.com"),
+        "Mexico" to listOf("mexiconewsdaily.com"),
+        "South Africa" to listOf("news24.com", "iol.co.za")
+    )
 
     /** ISO 3166-1 country name -> two-letter code, for every country the region picker can search. */
     val COUNTRIES: List<Pair<String, String>> = listOf(
@@ -211,15 +236,22 @@ object Feeds {
     )
 
     /**
-     * One Google News feed per [COMPARE_REGIONS] country, all for the same
-     * single category — not every category for every country — since this
-     * only needs to answer "who else is covering *this* story" for the one
-     * category the tapped story is already in.
+     * One feed per [COMPARE_REGIONS] country, searching that country's own
+     * known outlets (see [COMPARE_REGION_SOURCES]) for the tapped story's
+     * own keywords — not a generic "country + category" feed, which would
+     * just be unrelated daily news and could never match the story at all.
+     * This is what lets [StoryMatcher.crossCountryMatches] actually find
+     * the same event reported elsewhere instead of always coming up empty.
      */
-    fun compareFeedsFor(category: String): List<FeedSource> {
-        val keyword = GOOGLE_NEWS_CATEGORY_KEYWORD[category] ?: return emptyList()
-        return COMPARE_REGIONS.map { name ->
-            FeedSource(googleNewsSearchUrl(name, keyword), category, name, "Google News")
+    fun compareFeedsFor(story: Story): List<FeedSource> {
+        if (!GOOGLE_NEWS_CATEGORY_KEYWORD.containsKey(story.category)) return emptyList()
+        val keywords = StoryMatcher.searchPhrase(story.title)
+        if (keywords.isBlank()) return emptyList()
+        return COMPARE_REGIONS.mapNotNull { name ->
+            val domains = COMPARE_REGION_SOURCES[name] ?: return@mapNotNull null
+            val siteFilter = domains.joinToString(" OR ") { "site:$it" }
+            val query = "($siteFilter) $keywords $GOOGLE_NEWS_WINDOW"
+            FeedSource(googleNewsSearchUrl(query), story.category, name, "Google News")
         }
     }
 

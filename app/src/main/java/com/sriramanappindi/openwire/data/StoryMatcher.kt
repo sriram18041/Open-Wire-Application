@@ -34,6 +34,20 @@ object StoryMatcher {
             .filter { it.length > 2 && it !in STOPWORDS }
             .toSet()
 
+    /**
+     * A short, order-preserving keyword phrase pulled from a headline, for
+     * feeding into a search query (as opposed to [significantWords], which
+     * is an unordered set used only for similarity scoring).
+     */
+    fun searchPhrase(title: String, max: Int = 6): String =
+        title.lowercase()
+            .replace(Regex("[^a-z0-9\\s]"), " ")
+            .split(Regex("\\s+"))
+            .filter { it.length > 2 && it !in STOPWORDS }
+            .distinct()
+            .take(max)
+            .joinToString(" ")
+
     private fun similarity(a: String, b: String): Double {
         val wa = significantWords(a)
         val wb = significantWords(b)

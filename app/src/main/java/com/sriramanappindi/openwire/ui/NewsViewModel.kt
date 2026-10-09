@@ -160,7 +160,7 @@ class NewsViewModel(private val repository: NewsRepository) : ViewModel() {
     fun compareCoverage(story: Story) {
         _compare.update { CompareState(sourceStory = story, isLoading = true) }
         viewModelScope.launch {
-            val feeds = Feeds.compareFeedsFor(story.category)
+            val feeds = Feeds.compareFeedsFor(story)
             if (feeds.isEmpty()) {
                 _compare.update { it.copy(isLoading = false, message = "Comparison isn't available for this category yet.") }
                 return@launch
