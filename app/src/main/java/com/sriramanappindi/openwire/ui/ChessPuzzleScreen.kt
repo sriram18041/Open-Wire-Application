@@ -112,7 +112,7 @@ fun ChessPuzzleScreen(onBack: () -> Unit) {
                 if (isSolved) "🎉 Checkmate! Come back tomorrow for a new one." else "White to move — find the mate in one",
                 style = MaterialTheme.typography.bodyMedium,
                 color = if (isSolved) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(top = 8.dp, horizontal = 24.dp)
+                modifier = Modifier.padding(start = 24.dp, top = 8.dp, end = 24.dp)
             )
 
             ChessBoardView(
