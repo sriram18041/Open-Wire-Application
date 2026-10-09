@@ -76,6 +76,9 @@ import kotlinx.coroutines.launch
 
 private const val PRIVACY_POLICY_URL = "https://claude.ai/artifact/5zjf1W5UwVAbLzRd6vrBEX"
 
+/** Which top-level screen the drawer is pointed at. SUDOKU/CHESS are sub-screens of GAMES. */
+private enum class AppScreen { FEED, SAVED, GAMES, SUDOKU, CHESS }
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MainScreen(viewModel: NewsViewModel) {
@@ -89,10 +92,10 @@ fun MainScreen(viewModel: NewsViewModel) {
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope = rememberCoroutineScope()
     val listState = rememberLazyListState()
-    var showSaved by remember { mutableStateOf(false) }
+    var screen by remember { mutableStateOf(AppScreen.FEED) }
     var showSettings by remember { mutableStateOf(false) }
 
-    val displayedStories = if (showSaved) {
+    val displayedStories = if (screen == AppScreen.SAVED) {
         val q = state.query.trim().lowercase()
         savedStories.filter { s ->
             q.isEmpty() || (s.title + " " + s.summary + " " + s.source).lowercase().contains(q)
@@ -125,11 +128,11 @@ fun MainScreen(viewModel: NewsViewModel) {
                     modifier = Modifier.padding(start = 20.dp, top = 24.dp, bottom = 12.dp)
                 )
                 NavigationDrawerItem(
-                    selected = !showSaved,
+                    selected = screen == AppScreen.FEED,
                     icon = { Text("📰", fontSize = 18.sp) },
                     label = { Text("Feed", style = MaterialTheme.typography.bodyMedium) },
                     onClick = {
-                        showSaved = false
+                        screen = AppScreen.FEED
                         scope.launch { drawerState.close() }
                     },
                     colors = drawerItemColors(),
@@ -137,7 +140,7 @@ fun MainScreen(viewModel: NewsViewModel) {
                     modifier = Modifier.padding(horizontal = 12.dp, vertical = 3.dp)
                 )
                 NavigationDrawerItem(
-                    selected = showSaved,
+                    selected = screen == AppScreen.SAVED,
                     icon = { Text("🔖", fontSize = 18.sp) },
                     label = {
                         Text(
@@ -146,7 +149,19 @@ fun MainScreen(viewModel: NewsViewModel) {
                         )
                     },
                     onClick = {
-                        showSaved = true
+                        screen = AppScreen.SAVED
+                        scope.launch { drawerState.close() }
+                    },
+                    colors = drawerItemColors(),
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 3.dp)
+                )
+                NavigationDrawerItem(
+                    selected = screen == AppScreen.GAMES || screen == AppScreen.SUDOKU || screen == AppScreen.CHESS,
+                    icon = { Text("🎮", fontSize = 18.sp) },
+                    label = { Text("Games", style = MaterialTheme.typography.bodyMedium) },
+                    onClick = {
+                        screen = AppScreen.GAMES
                         scope.launch { drawerState.close() }
                     },
                     colors = drawerItemColors(),
@@ -165,13 +180,13 @@ fun MainScreen(viewModel: NewsViewModel) {
                     modifier = Modifier.padding(start = 20.dp, bottom = 8.dp)
                 )
                 com.sriramanappindi.openwire.data.Feeds.CATEGORIES.forEach { cat ->
-                    val isSelected = !showSaved && cat == state.category
+                    val isSelected = screen == AppScreen.FEED && cat == state.category
                     NavigationDrawerItem(
                         selected = isSelected,
                         icon = { Text(iconFor(cat), fontSize = 18.sp) },
                         label = { Text(cat, style = MaterialTheme.typography.bodyMedium) },
                         onClick = {
-                            showSaved = false
+                            screen = AppScreen.FEED
                             viewModel.setCategory(cat)
                             scope.launch { drawerState.close() }
                         },
@@ -202,7 +217,15 @@ fun MainScreen(viewModel: NewsViewModel) {
             }
         }
     ) {
-        Scaffold(
+        when (screen) {
+            AppScreen.GAMES -> GamesScreen(
+                onBack = { screen = AppScreen.FEED },
+                onOpenSudoku = { screen = AppScreen.SUDOKU },
+                onOpenChess = { screen = AppScreen.CHESS }
+            )
+            AppScreen.SUDOKU -> SudokuScreen(onBack = { screen = AppScreen.GAMES })
+            AppScreen.CHESS -> ChessPuzzleScreen(onBack = { screen = AppScreen.GAMES })
+            else -> Scaffold(
             topBar = {
                 Column {
                     TopAppBar(
@@ -213,9 +236,9 @@ fun MainScreen(viewModel: NewsViewModel) {
                         },
                         title = {
                             Column {
-                                Text(if (showSaved) "Saved" else "Open Wire", style = MaterialTheme.typography.titleLarge)
+                                Text(if (screen == AppScreen.SAVED) "Saved" else "Open Wire", style = MaterialTheme.typography.titleLarge)
                                 Text(
-                                    text = if (showSaved) {
+                                    text = if (screen == AppScreen.SAVED) {
                                         if (savedStories.isEmpty()) "Nothing saved yet" else "${savedStories.size} article${if (savedStories.size == 1) "" else "s"}"
                                     } else {
                                         statusLine(state)
@@ -260,11 +283,11 @@ fun MainScreen(viewModel: NewsViewModel) {
                     region = state.region,
                     regions = regions,
                     onRegionChange = viewModel::setRegion,
-                    showRegionPicker = !showSaved
+                    showRegionPicker = screen != AppScreen.SAVED
                 )
 
                 when {
-                    showSaved && displayedStories.isEmpty() -> {
+                    screen == AppScreen.SAVED && displayedStories.isEmpty() -> {
                         EmptyState(
                             if (savedStories.isEmpty()) {
                                 "Nothing saved yet. Tap \"Save\" on any story to keep it here for later."
@@ -273,10 +296,10 @@ fun MainScreen(viewModel: NewsViewModel) {
                             }
                         )
                     }
-                    !showSaved && displayedStories.isEmpty() && state.isLoading -> {
+                    screen != AppScreen.SAVED && displayedStories.isEmpty() && state.isLoading -> {
                         LoadingState(region = state.region)
                     }
-                    !showSaved && displayedStories.isEmpty() && state.error != null && state.stories.isEmpty() -> {
+                    screen != AppScreen.SAVED && displayedStories.isEmpty() && state.error != null && state.stories.isEmpty() -> {
                         ErrorState(message = state.error.orEmpty(), onRetry = viewModel::refresh)
                     }
                     displayedStories.isEmpty() -> {
@@ -312,6 +335,7 @@ fun MainScreen(viewModel: NewsViewModel) {
                     }
                 }
             }
+        }
         }
     }
 
