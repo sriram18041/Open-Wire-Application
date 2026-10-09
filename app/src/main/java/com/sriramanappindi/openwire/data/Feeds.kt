@@ -30,6 +30,17 @@ object Feeds {
         FeedSource("https://feeds.bbci.co.uk/news/science_and_environment/rss.xml", "Science", "Global", "BBC News"),
         FeedSource("https://www.sciencedaily.com/rss/top/science.xml", "Science", "Global", "ScienceDaily"),
         FeedSource("https://feeds.bbci.co.uk/sport/rss.xml?edition=int", "Sports", "Global", "BBC Sport"),
-        FeedSource("https://feeds.bbci.co.uk/news/entertainment_and_arts/rss.xml", "Entertainment", "Global", "BBC News")
+        FeedSource("https://feeds.bbci.co.uk/news/entertainment_and_arts/rss.xml", "Entertainment", "Global", "BBC News"),
+
+        // India — reused across World/Politics the same way the Al Jazeera
+        // "all" feed above covers two tabs from one endpoint, since Times of
+        // India doesn't publish a separate politics-only feed.
+        FeedSource("https://timesofindia.indiatimes.com/rssfeeds/-2128936835.cms", "World", "India", "Times of India"),
+        FeedSource("https://timesofindia.indiatimes.com/rssfeeds/-2128936835.cms", "Politics", "India", "Times of India"),
+        FeedSource("https://timesofindia.indiatimes.com/rssfeeds/1898055.cms", "Business", "India", "Times of India"),
+        FeedSource("https://timesofindia.indiatimes.com/rssfeeds/66949542.cms", "Tech", "India", "Times of India"),
+        FeedSource("https://timesofindia.indiatimes.com/rssfeeds/-2128672765.cms", "Science", "India", "Times of India"),
+        FeedSource("https://timesofindia.indiatimes.com/rssfeeds/4719148.cms", "Sports", "India", "Times of India"),
+        FeedSource("https://timesofindia.indiatimes.com/rssfeeds/1081479906.cms", "Entertainment", "India", "Times of India")
     )
 }

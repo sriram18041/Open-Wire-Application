@@ -9,16 +9,18 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.layout.wrapContentWidth
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Refresh
@@ -30,11 +32,12 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.NavigationRail
+import androidx.compose.material3.NavigationRailItem
+import androidx.compose.material3.NavigationRailItemDefaults
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
@@ -50,12 +53,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.sriramanappindi.openwire.data.Story
 import java.text.SimpleDateFormat
@@ -107,39 +110,41 @@ fun MainScreen(viewModel: NewsViewModel) {
             }
         }
     ) { padding ->
-        Column(
+        Row(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
         ) {
-            CategoryTabs(
+            CategorySidebar(
                 selected = state.category,
                 onSelect = viewModel::setCategory
             )
 
-            SearchAndRegionRow(
-                query = state.query,
-                onQueryChange = viewModel::setQuery,
-                region = state.region,
-                regions = regions,
-                onRegionChange = viewModel::setRegion
-            )
+            Column(modifier = Modifier.weight(1f).fillMaxHeight()) {
+                SearchAndRegionRow(
+                    query = state.query,
+                    onQueryChange = viewModel::setQuery,
+                    region = state.region,
+                    regions = regions,
+                    onRegionChange = viewModel::setRegion
+                )
 
-            when {
-                filtered.isEmpty() && state.error != null && state.stories.isEmpty() -> {
-                    ErrorState(message = state.error.orEmpty(), onRetry = viewModel::refresh)
-                }
-                filtered.isEmpty() -> {
-                    EmptyState()
-                }
-                else -> {
-                    LazyColumn(
-                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
-                        verticalArrangement = Arrangement.spacedBy(16.dp)
-                    ) {
-                        items(filtered, key = { it.id }) { story ->
-                            StoryCard(story) {
-                                context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(story.link)))
+                when {
+                    filtered.isEmpty() && state.error != null && state.stories.isEmpty() -> {
+                        ErrorState(message = state.error.orEmpty(), onRetry = viewModel::refresh)
+                    }
+                    filtered.isEmpty() -> {
+                        EmptyState()
+                    }
+                    else -> {
+                        LazyColumn(
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 12.dp),
+                            verticalArrangement = Arrangement.spacedBy(16.dp)
+                        ) {
+                            items(filtered, key = { it.id }) { story ->
+                                StoryCard(story) {
+                                    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(story.link)))
+                                }
                             }
                         }
                     }
@@ -161,36 +166,51 @@ private fun statusLine(state: UiState): String {
     return "Live · updated $ago"
 }
 
+/** Emoji read fine on every Android version/OEM skin without bundling an icon font. */
+private fun iconFor(category: String): String = when (category) {
+    "All" -> "📰"
+    "World" -> "🌍"
+    "Politics" -> "🏛️"
+    "Business" -> "💼"
+    "Tech" -> "💻"
+    "Science" -> "🔬"
+    "Sports" -> "⚽"
+    "Entertainment" -> "🎬"
+    else -> "•"
+}
+
 @Composable
-private fun CategoryTabs(selected: String, onSelect: (String) -> Unit) {
-    LazyRow(
-        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
+private fun CategorySidebar(selected: String, onSelect: (String) -> Unit) {
+    NavigationRail(
+        modifier = Modifier.fillMaxHeight(),
+        containerColor = MaterialTheme.colorScheme.background
     ) {
-        items(com.sriramanappindi.openwire.data.Feeds.CATEGORIES) { cat ->
-            val isSelected = cat == selected
-            FilterChip(
-                selected = isSelected,
-                onClick = { onSelect(cat) },
-                label = {
-                    Text(
-                        cat,
-                        style = MaterialTheme.typography.labelLarge,
-                        color = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
-                    )
-                },
-                shape = RoundedCornerShape(20.dp),
-                border = FilterChipDefaults.filterChipBorder(
-                    enabled = true,
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .verticalScroll(rememberScrollState()),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            com.sriramanappindi.openwire.data.Feeds.CATEGORIES.forEach { cat ->
+                val isSelected = cat == selected
+                NavigationRailItem(
                     selected = isSelected,
-                    borderColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                    selectedBorderColor = Color.Transparent
-                ),
-                colors = FilterChipDefaults.filterChipColors(
-                    containerColor = Color.Transparent,
-                    selectedContainerColor = MaterialTheme.colorScheme.primary
+                    onClick = { onSelect(cat) },
+                    icon = { Text(iconFor(cat), fontSize = 19.sp) },
+                    label = {
+                        Text(
+                            cat,
+                            style = MaterialTheme.typography.labelSmall,
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                        )
+                    },
+                    colors = NavigationRailItemDefaults.colors(
+                        indicatorColor = MaterialTheme.colorScheme.primary,
+                        selectedTextColor = MaterialTheme.colorScheme.primary,
+                        unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 )
-            )
+            }
         }
     }
 }
@@ -240,10 +260,21 @@ private fun SearchAndRegionRow(
                 Text(region, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onPrimary)
                 Icon(Icons.Filled.ArrowDropDown, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimary)
             }
-            DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            DropdownMenu(
+                expanded = expanded,
+                onDismissRequest = { expanded = false }
+            ) {
                 regions.forEach { r ->
+                    val isSelected = r == region
                     DropdownMenuItem(
-                        text = { Text(r) },
+                        text = {
+                            Text(
+                                r,
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
+                                color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                            )
+                        },
                         onClick = {
                             onRegionChange(r)
                             expanded = false
