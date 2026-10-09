@@ -19,16 +19,30 @@ class NewsRepository(private val cache: NewsCache) {
      */
     suspend fun refresh(): Result<List<Story>> = coroutineScope {
         val deferred = Feeds.ALL.map { feed ->
-            async(Dispatchers.IO) { runCatching { fetchFeed(feed) }.getOrDefault(emptyList()) }
+            async(Dispatchers.IO) {
+                runCatching { fetchFeed(feed) }
+                    .onFailure { e ->
+                        android.util.Log.e("OpenWire", "feed failed: ${feed.url} -> ${e.javaClass.simpleName}: ${e.message}", e)
+                    }
+                    .map { it to null as Throwable? }
+                    .getOrElse { emptyList<Story>() to it }
+            }
         }
-        val all = deferred.awaitAll().flatten()
+        val results = deferred.awaitAll()
+        val all = results.flatMap { it.first }
+        val errors = results.mapNotNull { it.second }
 
         if (all.isEmpty()) {
             val fallback = cache.load()
             return@coroutineScope if (fallback.isNotEmpty()) {
                 Result.success(fallback)
             } else {
-                Result.failure(IllegalStateException("No connection, and none of the sources answered."))
+                val reasons = errors
+                    .groupBy { "${it.javaClass.simpleName}: ${it.message}" }
+                    .entries
+                    .joinToString("; ") { (reason, occurrences) -> "$reason (${occurrences.size}x)" }
+                val detail = if (reasons.isNotEmpty()) " [$reasons]" else " [no sources returned data, no exceptions thrown]"
+                Result.failure(IllegalStateException("No connection, and none of the sources answered.$detail"))
             }
         }
 
