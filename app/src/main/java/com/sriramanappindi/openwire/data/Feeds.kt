@@ -92,6 +92,39 @@ object Feeds {
             FeedSource(googleNewsUrl(topic, countryCode), category, regionName, "Google News")
         }
 
+    /** One country's feed for a single category, or null if the category has no Google News topic. */
+    fun feedFor(category: String, countryCode: String, regionName: String): FeedSource? {
+        val topic = GOOGLE_NEWS_TOPIC[category] ?: return null
+        return FeedSource(googleNewsUrl(topic, countryCode), category, regionName, "Google News")
+    }
+
+    /**
+     * A small, globally-spread set of countries for the "compare coverage"
+     * feature — picked across continents and languages so a comparison
+     * feels like "the world's press", not an exhaustive list. Kept
+     * separate from the full [COUNTRIES] catalog on purpose: fetching this
+     * set is triggered by one person tapping "compare" on one story, so it
+     * has to stay small and fast rather than exhaustive.
+     */
+    val WORLD_LENS_COUNTRIES: List<Pair<String, String>> = listOf(
+        "United States" to "US",
+        "UK" to "GB",
+        "India" to "IN",
+        "France" to "FR",
+        "Germany" to "DE",
+        "Japan" to "JP",
+        "Brazil" to "BR",
+        "Nigeria" to "NG",
+        "Australia" to "AU",
+        "South Korea" to "KR"
+    )
+
+    /** The world-lens feed set for one category, skipping a region (typically the story's own, already loaded). */
+    fun worldLensFeedsFor(category: String, excludingRegion: String? = null): List<FeedSource> =
+        WORLD_LENS_COUNTRIES
+            .filter { (name, _) -> name != excludingRegion }
+            .mapNotNull { (name, code) -> feedFor(category, code, name) }
+
     /** ISO 3166-1 country name -> two-letter code, for every country the region picker can search. */
     val COUNTRIES: List<Pair<String, String>> = listOf(
         // Africa
@@ -161,6 +194,31 @@ object Feeds {
     /** Every region name the picker can show, before anything beyond HOME has been fetched. */
     val ALL_REGION_NAMES: List<String> =
         (HOME.map { it.region } + COUNTRIES.map { it.first }).distinct().sorted()
+
+    /**
+     * A deliberately small, continent-spread set of editions used by
+     * "Compare coverage" — enough geographic and cultural spread to make
+     * the comparison meaningful without firing off a request to all ~190
+     * countries just to look at one story.
+     */
+    val COMPARE_REGIONS: List<String> = listOf(
+        "United States", "UK", "India", "Germany", "France", "Brazil",
+        "Nigeria", "Japan", "Australia", "Russia", "Mexico", "South Africa"
+    )
+
+    /**
+     * One Google News feed per [COMPARE_REGIONS] country, all for the same
+     * single category — not every category for every country — since this
+     * only needs to answer "who else is covering *this* story" for the one
+     * category the tapped story is already in.
+     */
+    fun compareFeedsFor(category: String): List<FeedSource> {
+        val topic = GOOGLE_NEWS_TOPIC[category] ?: return emptyList()
+        return COMPARE_REGIONS.mapNotNull { name ->
+            val code = COUNTRIES.firstOrNull { it.first == name }?.second ?: return@mapNotNull null
+            FeedSource(googleNewsUrl(topic, code), category, name, "Google News")
+        }
+    }
 
     /**
      * The feeds backing one region. For a region already covered by [HOME]

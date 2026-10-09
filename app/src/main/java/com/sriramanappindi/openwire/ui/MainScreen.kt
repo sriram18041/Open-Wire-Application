@@ -15,6 +15,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -74,6 +76,7 @@ import kotlinx.coroutines.launch
 @Composable
 fun MainScreen(viewModel: NewsViewModel) {
     val state by viewModel.state.collectAsState()
+    val compareState by viewModel.compare.collectAsState()
     val context = LocalContext.current
     val filtered = viewModel.filtered(state)
     val regions = viewModel.allRegions()
@@ -197,15 +200,27 @@ fun MainScreen(viewModel: NewsViewModel) {
                             verticalArrangement = Arrangement.spacedBy(16.dp)
                         ) {
                             items(filtered, key = { it.id }) { story ->
-                                StoryCard(story) {
-                                    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(story.link)))
-                                }
+                                StoryCard(
+                                    story = story,
+                                    onClick = {
+                                        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(story.link)))
+                                    },
+                                    onCompare = { viewModel.compareCoverage(story) }
+                                )
                             }
                         }
                     }
                 }
             }
         }
+    }
+
+    if (compareState.sourceStory != null) {
+        CompareCoverageDialog(
+            compareState = compareState,
+            onOpen = { link -> context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(link))) },
+            onDismiss = viewModel::clearCompare
+        )
     }
 }
 
@@ -369,7 +384,106 @@ private fun RegionPickerDialog(
 }
 
 @Composable
-private fun StoryCard(story: Story, onClick: () -> Unit) {
+private fun CompareCoverageDialog(
+    compareState: CompareState,
+    onOpen: (String) -> Unit,
+    onDismiss: () -> Unit
+) {
+    val source = compareState.sourceStory ?: return
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(
+            shape = RoundedCornerShape(20.dp),
+            color = MaterialTheme.colorScheme.surfaceVariant,
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(max = 520.dp)
+        ) {
+            Column(modifier = Modifier.padding(20.dp)) {
+                Text(
+                    "🌍  Compare coverage",
+                    style = MaterialTheme.typography.titleMedium
+                )
+                Text(
+                    source.title,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 8.dp, bottom = 4.dp)
+                )
+                Text(
+                    "As covered in ${source.region}",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(bottom = 14.dp)
+                )
+
+                when {
+                    compareState.isLoading -> {
+                        Box(modifier = Modifier.fillMaxWidth().padding(vertical = 28.dp), contentAlignment = Alignment.Center) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
+                                Text(
+                                    "Checking other countries' coverage…",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.padding(top = 12.dp)
+                                )
+                            }
+                        }
+                    }
+                    compareState.matches.isEmpty() -> {
+                        Text(
+                            compareState.message ?: "No close matches elsewhere right now.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(vertical = 20.dp)
+                        )
+                    }
+                    else -> {
+                        LazyColumn(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                            items(compareState.matches, key = { it.id }) { match ->
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(12.dp))
+                                        .clickable { onOpen(match.link) }
+                                        .padding(vertical = 10.dp, horizontal = 10.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    if (!match.imageUrl.isNullOrBlank()) {
+                                        AsyncImage(
+                                            model = match.imageUrl,
+                                            contentDescription = null,
+                                            contentScale = ContentScale.Crop,
+                                            modifier = Modifier
+                                                .size(48.dp)
+                                                .clip(RoundedCornerShape(10.dp))
+                                        )
+                                        Spacer(Modifier.width(10.dp))
+                                    }
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            "${match.region}  ·  ${match.source}",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.primary
+                                        )
+                                        Text(
+                                            match.title,
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            modifier = Modifier.padding(top = 3.dp)
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun StoryCard(story: Story, onClick: () -> Unit, onCompare: () -> Unit) {
     Card(
         onClick = onClick,
         modifier = Modifier.fillMaxWidth(),
@@ -439,6 +553,16 @@ private fun StoryCard(story: Story, onClick: () -> Unit) {
                     modifier = Modifier.clickable(onClick = onClick)
                 )
             }
+
+            Text(
+                "🌍  Compare coverage",
+                style = MaterialTheme.typography.bodySmall,
+                fontWeight = FontWeight.Medium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier
+                    .padding(top = 10.dp)
+                    .clickable(onClick = onCompare)
+            )
         }
     }
 }

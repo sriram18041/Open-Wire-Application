@@ -12,6 +12,7 @@ import com.sriramanappindi.openwire.data.LocationRegion
 import com.sriramanappindi.openwire.data.NewsCache
 import com.sriramanappindi.openwire.data.NewsRepository
 import com.sriramanappindi.openwire.data.Story
+import com.sriramanappindi.openwire.data.StoryMatcher
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -33,10 +34,21 @@ data class UiState(
     val loadedRegions: Set<String> = emptySet()
 )
 
+/** Result of asking "who else is covering this story?" for one tapped headline. */
+data class CompareState(
+    val sourceStory: Story? = null,
+    val isLoading: Boolean = false,
+    val matches: List<Story> = emptyList(),
+    val message: String? = null
+)
+
 class NewsViewModel(private val repository: NewsRepository) : ViewModel() {
 
     private val _state = MutableStateFlow(UiState(isLoading = true))
     val state: StateFlow<UiState> = _state.asStateFlow()
+
+    private val _compare = MutableStateFlow(CompareState())
+    val compare: StateFlow<CompareState> = _compare.asStateFlow()
 
     init {
         val cached = repository.cached()
@@ -134,6 +146,44 @@ class NewsViewModel(private val repository: NewsRepository) : ViewModel() {
                 setRegion(region)
             }
         }
+    }
+
+    /**
+     * "Compare coverage": fetches the same category's headlines from a
+     * spread of other countries and uses [StoryMatcher] to find the ones
+     * most likely covering the same event as [story], so the person can
+     * see how the story reads in other countries' own press. The matching
+     * is a keyword-overlap heuristic, not real story identity — good
+     * enough to surface genuinely related coverage without a backend or
+     * any ML model.
+     */
+    fun compareCoverage(story: Story) {
+        _compare.update { CompareState(sourceStory = story, isLoading = true) }
+        viewModelScope.launch {
+            val feeds = Feeds.compareFeedsFor(story.category)
+            if (feeds.isEmpty()) {
+                _compare.update { it.copy(isLoading = false, message = "Comparison isn't available for this category yet.") }
+                return@launch
+            }
+            val fetched = runCatching { repository.fetchSupplementary(feeds) }.getOrDefault(emptyList())
+            if (fetched.isEmpty()) {
+                _compare.update { it.copy(isLoading = false, message = "Couldn't reach other countries' editions right now.") }
+                return@launch
+            }
+            val matches = StoryMatcher.crossCountryMatches(story, fetched)
+            val enriched = runCatching { repository.enrichImages(matches) }.getOrDefault(matches)
+            _compare.update {
+                it.copy(
+                    isLoading = false,
+                    matches = enriched,
+                    message = if (enriched.isEmpty()) "No close matches elsewhere right now — try again shortly." else null
+                )
+            }
+        }
+    }
+
+    fun clearCompare() {
+        _compare.update { CompareState() }
     }
 
     fun filtered(state: UiState): List<Story> {

@@ -30,19 +30,7 @@ class NewsRepository(private val cache: NewsCache) {
      * (the view model) decides which regions are "active" right now.
      */
     suspend fun refresh(feeds: List<FeedSource>): Result<List<Story>> = coroutineScope {
-        val deferred = feeds.map { feed ->
-            async(Dispatchers.IO) {
-                runCatching { fetchFeed(feed) }
-                    .onFailure { e ->
-                        android.util.Log.e("OpenWire", "feed failed: ${feed.url} -> ${e.javaClass.simpleName}: ${e.message}", e)
-                    }
-                    .map { it to null as Throwable? }
-                    .getOrElse { emptyList<Story>() to it }
-            }
-        }
-        val results = deferred.awaitAll()
-        val all = results.flatMap { it.first }
-        val errors = results.mapNotNull { it.second }
+        val (all, errors) = fetchMany(feeds)
 
         if (all.isEmpty()) {
             val fallback = cache.load()
@@ -62,6 +50,35 @@ class NewsRepository(private val cache: NewsCache) {
         val enriched = fillMissingImages(deduped)
         cache.save(enriched)
         Result.success(enriched)
+    }
+
+    /**
+     * A one-off fetch that doesn't touch the cache or fall back to it —
+     * used for the "compare coverage" lens, which is a small supplementary
+     * lookup on top of whatever's already on screen, not a replacement for
+     * it. Returns whatever came back, empty on total failure.
+     */
+    suspend fun fetchSupplementary(feeds: List<FeedSource>): List<Story> = coroutineScope {
+        val (all, _) = fetchMany(feeds)
+        all.distinctBy { it.link }.sortedByDescending { it.publishedAt }
+    }
+
+    /** Lets callers enrich a small, already-selected list of stories (e.g. comparison matches) with [fillMissingImages]. */
+    suspend fun enrichImages(stories: List<Story>): List<Story> = fillMissingImages(stories)
+
+    private suspend fun fetchMany(feeds: List<FeedSource>): Pair<List<Story>, List<Throwable>> = coroutineScope {
+        val deferred = feeds.map { feed ->
+            async(Dispatchers.IO) {
+                runCatching { fetchFeed(feed) }
+                    .onFailure { e ->
+                        android.util.Log.e("OpenWire", "feed failed: ${feed.url} -> ${e.javaClass.simpleName}: ${e.message}", e)
+                    }
+                    .map { it to null as Throwable? }
+                    .getOrElse { emptyList<Story>() to it }
+            }
+        }
+        val results = deferred.awaitAll()
+        results.flatMap { it.first } to results.mapNotNull { it.second }
     }
 
     /**
