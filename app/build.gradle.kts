@@ -2,6 +2,8 @@ plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.compose")
+    id("com.google.gms.google-services")
+    id("com.google.firebase.crashlytics")
 }
 
 kotlin {
@@ -43,7 +45,11 @@ android {
             )
         }
         debug {
-            applicationIdSuffix = ".debug"
+            // No applicationIdSuffix: the debug build shares the release
+            // package name so it matches the single Android app registered
+            // in Firebase (google-services.json below). The google-services
+            // Gradle plugin fails the build if a variant's applicationId
+            // doesn't match any registered client exactly.
         }
     }
 
@@ -65,6 +71,9 @@ android {
 
 dependencies {
     implementation(platform("androidx.compose:compose-bom:2024.09.00"))
+    implementation(platform("com.google.firebase:firebase-bom:35.0.0"))
+    implementation("com.google.firebase:firebase-analytics")
+    implementation("com.google.firebase:firebase-crashlytics")
 
     implementation("androidx.core:core-ktx:1.13.1")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.4")

@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "185288613527",
+    "project_id": "openwire-12e3f",
+    "storage_bucket": "openwire-12e3f.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:185288613527:android:3bf620c6e9504322c853d2",
+        "android_client_info": {
+          "package_name": "com.sriramanappindi.openwire"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCkhM2vQB8kor1bS2uvLb0tHi_BDPytRAA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
