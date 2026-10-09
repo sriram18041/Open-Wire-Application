@@ -8,47 +8,51 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.foundation.layout.wrapContentWidth
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.NavigationRail
-import androidx.compose.material3.NavigationRailItem
-import androidx.compose.material3.NavigationRailItemDefaults
+import androidx.compose.material3.ModalDrawerSheet
+import androidx.compose.material3.ModalNavigationDrawer
+import androidx.compose.material3.NavigationDrawerItem
+import androidx.compose.material3.NavigationDrawerItemDefaults
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -59,10 +63,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
 import coil.compose.AsyncImage
 import com.sriramanappindi.openwire.data.Story
 import java.text.SimpleDateFormat
 import java.util.Locale
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -71,56 +77,101 @@ fun MainScreen(viewModel: NewsViewModel) {
     val context = LocalContext.current
     val filtered = viewModel.filtered(state)
     val regions = viewModel.regionsFor(state.stories)
+    val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
+    val scope = rememberCoroutineScope()
+    val listState = rememberLazyListState()
 
-    Scaffold(
-        topBar = {
-            Column {
-                TopAppBar(
-                    title = {
-                        Column {
-                            Text("Open Wire", style = MaterialTheme.typography.titleLarge)
-                            Text(
-                                text = statusLine(state),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    },
-                    actions = {
-                        IconButton(onClick = { viewModel.refresh() }) {
-                            if (state.isLoading) {
-                                CircularProgressIndicator(
-                                    modifier = Modifier
-                                        .padding(4.dp)
-                                        .height(20.dp),
-                                    strokeWidth = 2.dp,
-                                    color = MaterialTheme.colorScheme.primary
-                                )
-                            } else {
-                                Icon(Icons.Filled.Refresh, contentDescription = "Refresh", tint = MaterialTheme.colorScheme.primary)
-                            }
-                        }
-                    },
-                    colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background)
+    // The refresh button (and auto-refresh) were replacing the story list
+    // in place, leaving the reader scrolled wherever they happened to be —
+    // so new stories landed off-screen above. Snap back to the top whenever
+    // fresh content arrives or the person switches what they're looking at.
+    LaunchedEffect(state.lastUpdated, state.category, state.region, state.query) {
+        if (listState.firstVisibleItemIndex != 0 || listState.firstVisibleItemScrollOffset != 0) {
+            listState.scrollToItem(0)
+        }
+    }
+
+    ModalNavigationDrawer(
+        drawerState = drawerState,
+        drawerContent = {
+            ModalDrawerSheet(drawerContainerColor = MaterialTheme.colorScheme.background) {
+                Text(
+                    "Categories",
+                    style = MaterialTheme.typography.titleLarge,
+                    modifier = Modifier.padding(start = 20.dp, top = 24.dp, bottom = 12.dp)
                 )
-                androidx.compose.material3.HorizontalDivider(
-                    thickness = 2.dp,
-                    color = MaterialTheme.colorScheme.onBackground
-                )
+                com.sriramanappindi.openwire.data.Feeds.CATEGORIES.forEach { cat ->
+                    val isSelected = cat == state.category
+                    NavigationDrawerItem(
+                        selected = isSelected,
+                        icon = { Text(iconFor(cat), fontSize = 18.sp) },
+                        label = { Text(cat, style = MaterialTheme.typography.bodyMedium) },
+                        onClick = {
+                            viewModel.setCategory(cat)
+                            scope.launch { drawerState.close() }
+                        },
+                        colors = NavigationDrawerItemDefaults.colors(
+                            selectedContainerColor = MaterialTheme.colorScheme.primary,
+                            selectedTextColor = MaterialTheme.colorScheme.onPrimary,
+                            selectedIconColor = MaterialTheme.colorScheme.onPrimary,
+                            unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                            unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant
+                        ),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 3.dp)
+                    )
+                }
             }
         }
-    ) { padding ->
-        Row(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-        ) {
-            CategorySidebar(
-                selected = state.category,
-                onSelect = viewModel::setCategory
-            )
-
-            Column(modifier = Modifier.weight(1f).fillMaxHeight()) {
+    ) {
+        Scaffold(
+            topBar = {
+                Column {
+                    TopAppBar(
+                        navigationIcon = {
+                            IconButton(onClick = { scope.launch { drawerState.open() } }) {
+                                Icon(Icons.Filled.Menu, contentDescription = "Categories", tint = MaterialTheme.colorScheme.primary)
+                            }
+                        },
+                        title = {
+                            Column {
+                                Text("Open Wire", style = MaterialTheme.typography.titleLarge)
+                                Text(
+                                    text = statusLine(state),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        },
+                        actions = {
+                            IconButton(onClick = { viewModel.refresh() }) {
+                                if (state.isLoading) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier
+                                            .padding(4.dp)
+                                            .height(20.dp),
+                                        strokeWidth = 2.dp,
+                                        color = MaterialTheme.colorScheme.primary
+                                    )
+                                } else {
+                                    Icon(Icons.Filled.Refresh, contentDescription = "Refresh", tint = MaterialTheme.colorScheme.primary)
+                                }
+                            }
+                        },
+                        colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background)
+                    )
+                    androidx.compose.material3.HorizontalDivider(
+                        thickness = 2.dp,
+                        color = MaterialTheme.colorScheme.onBackground
+                    )
+                }
+            }
+        ) { padding ->
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(padding)
+            ) {
                 SearchAndRegionRow(
                     query = state.query,
                     onQueryChange = viewModel::setQuery,
@@ -138,7 +189,8 @@ fun MainScreen(viewModel: NewsViewModel) {
                     }
                     else -> {
                         LazyColumn(
-                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 12.dp),
+                            state = listState,
+                            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
                             verticalArrangement = Arrangement.spacedBy(16.dp)
                         ) {
                             items(filtered, key = { it.id }) { story ->
@@ -179,42 +231,6 @@ private fun iconFor(category: String): String = when (category) {
     else -> "•"
 }
 
-@Composable
-private fun CategorySidebar(selected: String, onSelect: (String) -> Unit) {
-    NavigationRail(
-        modifier = Modifier.fillMaxHeight(),
-        containerColor = MaterialTheme.colorScheme.background
-    ) {
-        Column(
-            modifier = Modifier
-                .weight(1f)
-                .verticalScroll(rememberScrollState()),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            com.sriramanappindi.openwire.data.Feeds.CATEGORIES.forEach { cat ->
-                val isSelected = cat == selected
-                NavigationRailItem(
-                    selected = isSelected,
-                    onClick = { onSelect(cat) },
-                    icon = { Text(iconFor(cat), fontSize = 19.sp) },
-                    label = {
-                        Text(
-                            cat,
-                            style = MaterialTheme.typography.labelSmall,
-                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
-                        )
-                    },
-                    colors = NavigationRailItemDefaults.colors(
-                        indicatorColor = MaterialTheme.colorScheme.primary,
-                        selectedTextColor = MaterialTheme.colorScheme.primary,
-                        unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                )
-            }
-        }
-    }
-}
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun SearchAndRegionRow(
@@ -247,39 +263,102 @@ private fun SearchAndRegionRow(
             )
         )
 
-        var expanded by remember { mutableStateOf(false) }
-        Box(modifier = Modifier.wrapContentWidth()) {
-            Button(
-                onClick = { expanded = true },
-                shape = RoundedCornerShape(24.dp),
-                colors = androidx.compose.material3.ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    contentColor = MaterialTheme.colorScheme.onPrimary
+        var showPicker by remember { mutableStateOf(false) }
+        Button(
+            onClick = { showPicker = true },
+            shape = RoundedCornerShape(24.dp),
+            colors = androidx.compose.material3.ButtonDefaults.buttonColors(
+                containerColor = MaterialTheme.colorScheme.primary,
+                contentColor = MaterialTheme.colorScheme.onPrimary
+            )
+        ) {
+            Text(region, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onPrimary)
+            Icon(Icons.Filled.ArrowDropDown, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimary)
+        }
+
+        if (showPicker) {
+            RegionPickerDialog(
+                regions = regions,
+                selected = region,
+                onSelect = onRegionChange,
+                onDismiss = { showPicker = false }
+            )
+        }
+    }
+}
+
+@Composable
+private fun RegionPickerDialog(
+    regions: List<String>,
+    selected: String,
+    onSelect: (String) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var query by remember { mutableStateOf("") }
+    val filtered = remember(query, regions) {
+        if (query.isBlank()) regions else regions.filter { it.contains(query, ignoreCase = true) }
+    }
+
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(
+            shape = RoundedCornerShape(20.dp),
+            color = MaterialTheme.colorScheme.surfaceVariant,
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(max = 460.dp)
+        ) {
+            Column(modifier = Modifier.padding(20.dp)) {
+                Text(
+                    "Choose a region",
+                    style = MaterialTheme.typography.titleMedium,
+                    modifier = Modifier.padding(bottom = 12.dp)
                 )
-            ) {
-                Text(region, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onPrimary)
-                Icon(Icons.Filled.ArrowDropDown, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimary)
-            }
-            DropdownMenu(
-                expanded = expanded,
-                onDismissRequest = { expanded = false }
-            ) {
-                regions.forEach { r ->
-                    val isSelected = r == region
-                    DropdownMenuItem(
-                        text = {
-                            Text(
-                                r,
-                                style = MaterialTheme.typography.bodyMedium,
-                                fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
-                                color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
-                            )
-                        },
-                        onClick = {
-                            onRegionChange(r)
-                            expanded = false
-                        }
+                OutlinedTextField(
+                    value = query,
+                    onValueChange = { query = it },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    textStyle = MaterialTheme.typography.bodyMedium,
+                    placeholder = { Text("Search country or region", style = MaterialTheme.typography.bodyMedium) },
+                    leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant) },
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = MaterialTheme.colorScheme.primary,
+                        unfocusedBorderColor = MaterialTheme.colorScheme.onSurfaceVariant
                     )
+                )
+                Spacer(Modifier.height(4.dp))
+                if (filtered.isEmpty()) {
+                    Text(
+                        "No region matches \"$query\". More countries are added over time — tell the developer which one you'd like to see.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(vertical = 20.dp)
+                    )
+                } else {
+                    LazyColumn {
+                        items(filtered) { r ->
+                            val isSelected = r == selected
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .clickable {
+                                        onSelect(r)
+                                        onDismiss()
+                                    }
+                                    .padding(vertical = 13.dp, horizontal = 10.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    r,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
+                                    color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+                        }
+                    }
                 }
             }
         }
