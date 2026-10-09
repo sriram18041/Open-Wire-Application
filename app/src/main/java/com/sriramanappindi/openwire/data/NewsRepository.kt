@@ -95,21 +95,29 @@ class NewsRepository(private val cache: NewsCache) {
         val candidates = stories.filter { it.imageUrl.isNullOrBlank() }.take(MAX_IMAGE_LOOKUPS)
         if (candidates.isEmpty()) return stories
 
-        val resolved = withTimeoutOrNull(IMAGE_LOOKUP_BUDGET_MS) {
+        // Each lookup writes straight into this map as it finishes, instead
+        // of being collected only once the whole batch completes. That way,
+        // if the overall budget runs out before every lookup is done (easy
+        // once a Google News-backed region adds dozens of image-less
+        // stories at once), whatever finished in time is kept rather than
+        // the entire batch being discarded along with the slow stragglers.
+        val resolved = ConcurrentHashMap<String, String>()
+        val semaphore = Semaphore(IMAGE_LOOKUP_CONCURRENCY)
+        withTimeoutOrNull(IMAGE_LOOKUP_BUDGET_MS) {
             coroutineScope {
-                val semaphore = Semaphore(IMAGE_LOOKUP_CONCURRENCY)
-                candidates.associate { story ->
-                    story.link to async(Dispatchers.IO) {
+                candidates.map { story ->
+                    async(Dispatchers.IO) {
                         semaphore.withPermit { resolveArticleImage(story.link) }
+                            ?.let { resolved[story.link] = it }
                     }
-                }.mapValues { it.value.await() }
+                }.awaitAll()
             }
-        } ?: return stories
+        }
 
-        if (resolved.values.all { it == null }) return stories
+        if (resolved.isEmpty()) return stories
         return stories.map { story ->
             val found = resolved[story.link]
-            if (story.imageUrl.isNullOrBlank() && !found.isNullOrBlank()) story.copy(imageUrl = found) else story
+            if (story.imageUrl.isNullOrBlank() && found != null) story.copy(imageUrl = found) else story
         }
     }
 
@@ -186,9 +194,9 @@ class NewsRepository(private val cache: NewsCache) {
     }
 
     companion object {
-        private const val MAX_IMAGE_LOOKUPS = 50
-        private const val IMAGE_LOOKUP_CONCURRENCY = 6
-        private const val IMAGE_LOOKUP_BUDGET_MS = 18_000L
+        private const val MAX_IMAGE_LOOKUPS = 90
+        private const val IMAGE_LOOKUP_CONCURRENCY = 10
+        private const val IMAGE_LOOKUP_BUDGET_MS = 25_000L
 
         private val OG_IMAGE_PATTERNS = listOf(
             Regex("""<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']""", RegexOption.IGNORE_CASE),
