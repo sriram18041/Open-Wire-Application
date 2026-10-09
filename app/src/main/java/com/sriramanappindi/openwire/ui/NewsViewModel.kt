@@ -8,6 +8,7 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.sriramanappindi.openwire.data.FeedSource
 import com.sriramanappindi.openwire.data.Feeds
+import com.sriramanappindi.openwire.data.LocationRegion
 import com.sriramanappindi.openwire.data.NewsCache
 import com.sriramanappindi.openwire.data.NewsRepository
 import com.sriramanappindi.openwire.data.Story
@@ -114,6 +115,27 @@ class NewsViewModel(private val repository: NewsRepository) : ViewModel() {
     /** Every region name the picker can offer, available before anything beyond HOME has loaded. */
     fun allRegions(): List<String> = listOf("All regions") + Feeds.ALL_REGION_NAMES
 
+    /**
+     * Tries, once ever per install, to default the feed to wherever the
+     * person actually is. Only does anything when location permission has
+     * already been granted — the caller (MainActivity) is what asks for it.
+     * A location that doesn't resolve to a recognised country, or any
+     * failure along the way, just leaves the default "All regions" view in
+     * place; this never blocks or retries on later launches.
+     */
+    fun maybeApplyLocationRegion(context: Context) {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        if (prefs.getBoolean(KEY_INITIAL_REGION_TRIED, false)) return
+        prefs.edit().putBoolean(KEY_INITIAL_REGION_TRIED, true).apply()
+
+        viewModelScope.launch {
+            val region = runCatching { LocationRegion.resolve(context) }.getOrNull()
+            if (!region.isNullOrBlank()) {
+                setRegion(region)
+            }
+        }
+    }
+
     fun filtered(state: UiState): List<Story> {
         val q = state.query.trim().lowercase()
         return state.stories.filter { story ->
@@ -124,6 +146,9 @@ class NewsViewModel(private val repository: NewsRepository) : ViewModel() {
     }
 
     companion object {
+        private const val PREFS_NAME = "openwire_prefs"
+        private const val KEY_INITIAL_REGION_TRIED = "initial_region_tried"
+
         fun factory(context: Context): ViewModelProvider.Factory = viewModelFactory {
             initializer {
                 NewsViewModel(NewsRepository(NewsCache(context.applicationContext)))
