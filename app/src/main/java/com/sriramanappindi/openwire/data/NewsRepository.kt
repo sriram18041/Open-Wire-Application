@@ -64,9 +64,20 @@ class NewsRepository(private val cache: NewsCache) {
             connection.connect()
             val code = connection.responseCode
             if (code in 200..299) {
-                val stories = connection.inputStream.use { stream -> RssParser.parse(stream, feed) }
+                val bytes = connection.inputStream.use { it.readBytes() }
+                val encoding = connection.contentEncoding
+                val stories = try {
+                    bytes.inputStream().use { stream -> RssParser.parse(stream, feed) }
+                } catch (e: Exception) {
+                    val preview = runCatching { String(bytes, Charsets.UTF_8).take(80) }.getOrDefault("<unreadable>")
+                    throw IllegalStateException(
+                        "HTTP $code, ${bytes.size}B, encoding=$encoding, parse threw ${e.javaClass.simpleName}: ${e.message} | preview: ${preview.replace("\n", " ")}",
+                        e
+                    )
+                }
                 if (stories.isEmpty()) {
-                    throw IllegalStateException("HTTP $code OK but 0 items parsed from ${feed.url}")
+                    val preview = runCatching { String(bytes, Charsets.UTF_8).take(80) }.getOrDefault("<unreadable>")
+                    throw IllegalStateException("HTTP $code, ${bytes.size}B, encoding=$encoding, 0 items | preview: ${preview.replace("\n", " ")}")
                 }
                 stories
             } else {

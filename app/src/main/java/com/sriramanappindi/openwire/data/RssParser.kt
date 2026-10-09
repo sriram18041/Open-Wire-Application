@@ -28,8 +28,8 @@ object RssParser {
             (0 until nodeList.length)
                 .mapNotNull { nodeList.item(it) as? Element }
                 .mapNotNull { toStory(it, feed) }
-        } catch (_: Exception) {
-            emptyList()
+        } catch (e: Exception) {
+            throw IllegalStateException("parse failed for ${feed.url}: ${e.javaClass.simpleName}: ${e.message}", e)
         }
     }
 
