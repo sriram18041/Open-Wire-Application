@@ -1,13 +1,20 @@
 package com.sriramanappindi.openwire.data
 
+import java.net.HttpURLConnection
+import java.net.URL
+import java.util.concurrent.ConcurrentHashMap
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
-import java.net.HttpURLConnection
-import java.net.URL
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
+import kotlinx.coroutines.withTimeoutOrNull
 
 class NewsRepository(private val cache: NewsCache) {
+
+    /** article link -> resolved image URL, "" meaning "looked, found none". Avoids re-fetching the same article page every refresh. */
+    private val imageCache = ConcurrentHashMap<String, String>()
 
     fun cached(): List<Story> = cache.load()
 
@@ -52,8 +59,76 @@ class NewsRepository(private val cache: NewsCache) {
         }
 
         val deduped = all.distinctBy { it.link }.sortedByDescending { it.publishedAt }
-        cache.save(deduped)
-        Result.success(deduped)
+        val enriched = fillMissingImages(deduped)
+        cache.save(enriched)
+        Result.success(enriched)
+    }
+
+    /**
+     * Some feeds (Google News among them) never include a thumbnail in the
+     * feed itself — only a title, link and summary. For stories missing an
+     * image, this opens the article page the story links to and reads its
+     * `og:image` meta tag, the same tag every news site sets so the link
+     * looks right when shared on social media. Bounded on three sides —
+     * how many stories, how many requests at once, and a total time budget —
+     * so one slow or unusual site can't stall a refresh; whatever doesn't
+     * resolve in time is simply left without a photo, same as before.
+     */
+    private suspend fun fillMissingImages(stories: List<Story>): List<Story> {
+        val candidates = stories.filter { it.imageUrl.isNullOrBlank() }.take(MAX_IMAGE_LOOKUPS)
+        if (candidates.isEmpty()) return stories
+
+        val resolved = withTimeoutOrNull(IMAGE_LOOKUP_BUDGET_MS) {
+            coroutineScope {
+                val semaphore = Semaphore(IMAGE_LOOKUP_CONCURRENCY)
+                candidates.associate { story ->
+                    story.link to async(Dispatchers.IO) {
+                        semaphore.withPermit { resolveArticleImage(story.link) }
+                    }
+                }.mapValues { it.value.await() }
+            }
+        } ?: return stories
+
+        if (resolved.values.all { it == null }) return stories
+        return stories.map { story ->
+            val found = resolved[story.link]
+            if (story.imageUrl.isNullOrBlank() && !found.isNullOrBlank()) story.copy(imageUrl = found) else story
+        }
+    }
+
+    private fun resolveArticleImage(link: String): String? {
+        imageCache[link]?.let { return it.ifBlank { null } }
+        val found = runCatching { fetchOgImage(link) }.getOrNull()
+        imageCache[link] = found.orEmpty()
+        return found
+    }
+
+    private fun fetchOgImage(link: String): String? {
+        val connection = (URL(link).openConnection() as HttpURLConnection).apply {
+            connectTimeout = 5_000
+            readTimeout = 5_000
+            requestMethod = "GET"
+            instanceFollowRedirects = true
+            setRequestProperty("User-Agent", "Mozilla/5.0 (Linux; Android 10) OpenWire/1.0")
+            setRequestProperty("Accept", "text/html")
+        }
+        return try {
+            connection.connect()
+            if (connection.responseCode !in 200..299) return null
+            val html = connection.inputStream.use { it.readBytes() }
+                .let { bytes -> String(bytes, Charsets.UTF_8) }
+                .take(120_000) // link-preview tags always sit near the top of <head>
+            ogImage(html)
+        } finally {
+            connection.disconnect()
+        }
+    }
+
+    private fun ogImage(html: String): String? {
+        OG_IMAGE_PATTERNS.forEach { pattern ->
+            pattern.find(html)?.groupValues?.get(1)?.let { return it }
+        }
+        return null
     }
 
     private fun fetchFeed(feed: FeedSource): List<Story> {
@@ -91,5 +166,18 @@ class NewsRepository(private val cache: NewsCache) {
         } finally {
             connection.disconnect()
         }
+    }
+
+    companion object {
+        private const val MAX_IMAGE_LOOKUPS = 50
+        private const val IMAGE_LOOKUP_CONCURRENCY = 6
+        private const val IMAGE_LOOKUP_BUDGET_MS = 18_000L
+
+        private val OG_IMAGE_PATTERNS = listOf(
+            Regex("""<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']""", RegexOption.IGNORE_CASE),
+            Regex("""<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image["']""", RegexOption.IGNORE_CASE),
+            Regex("""<meta[^>]+name=["']twitter:image["'][^>]+content=["']([^"']+)["']""", RegexOption.IGNORE_CASE),
+            Regex("""<meta[^>]+content=["']([^"']+)["'][^>]+name=["']twitter:image["']""", RegexOption.IGNORE_CASE)
+        )
     }
 }
