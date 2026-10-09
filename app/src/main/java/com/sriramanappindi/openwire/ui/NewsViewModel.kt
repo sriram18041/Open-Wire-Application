@@ -11,8 +11,10 @@ import com.sriramanappindi.openwire.data.Feeds
 import com.sriramanappindi.openwire.data.LocationRegion
 import com.sriramanappindi.openwire.data.NewsCache
 import com.sriramanappindi.openwire.data.NewsRepository
+import com.sriramanappindi.openwire.data.SavedStore
 import com.sriramanappindi.openwire.data.Story
 import com.sriramanappindi.openwire.data.StoryMatcher
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -42,13 +44,20 @@ data class CompareState(
     val message: String? = null
 )
 
-class NewsViewModel(private val repository: NewsRepository) : ViewModel() {
+class NewsViewModel(
+    private val repository: NewsRepository,
+    private val appContext: Context
+) : ViewModel() {
 
     private val _state = MutableStateFlow(UiState(isLoading = true))
     val state: StateFlow<UiState> = _state.asStateFlow()
 
     private val _compare = MutableStateFlow(CompareState())
     val compare: StateFlow<CompareState> = _compare.asStateFlow()
+
+    private val savedStore = SavedStore(appContext)
+    private val _saved = MutableStateFlow(savedStore.load())
+    val saved: StateFlow<List<Story>> = _saved.asStateFlow()
 
     init {
         val cached = repository.cached()
@@ -186,6 +195,16 @@ class NewsViewModel(private val repository: NewsRepository) : ViewModel() {
         _compare.update { CompareState() }
     }
 
+    fun isSaved(storyId: String): Boolean = _saved.value.any { it.id == storyId }
+
+    /** Bookmarks a story for later, or un-bookmarks it if it's already saved. */
+    fun toggleSaved(story: Story) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val updated = savedStore.toggle(story)
+            _saved.update { updated }
+        }
+    }
+
     fun filtered(state: UiState): List<Story> {
         val q = state.query.trim().lowercase()
         return state.stories.filter { story ->
@@ -201,7 +220,8 @@ class NewsViewModel(private val repository: NewsRepository) : ViewModel() {
 
         fun factory(context: Context): ViewModelProvider.Factory = viewModelFactory {
             initializer {
-                NewsViewModel(NewsRepository(NewsCache(context.applicationContext)))
+                val appContext = context.applicationContext
+                NewsViewModel(NewsRepository(NewsCache(appContext)), appContext)
             }
         }
     }

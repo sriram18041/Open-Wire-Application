@@ -77,12 +77,23 @@ import kotlinx.coroutines.launch
 fun MainScreen(viewModel: NewsViewModel) {
     val state by viewModel.state.collectAsState()
     val compareState by viewModel.compare.collectAsState()
+    val savedStories by viewModel.saved.collectAsState()
     val context = LocalContext.current
     val filtered = viewModel.filtered(state)
     val regions = viewModel.allRegions()
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope = rememberCoroutineScope()
     val listState = rememberLazyListState()
+    var showSaved by remember { mutableStateOf(false) }
+
+    val displayedStories = if (showSaved) {
+        val q = state.query.trim().lowercase()
+        savedStories.filter { s ->
+            q.isEmpty() || (s.title + " " + s.summary + " " + s.source).lowercase().contains(q)
+        }
+    } else {
+        filtered
+    }
 
     // The refresh button (and auto-refresh) were replacing the story list
     // in place, leaving the reader scrolled wherever they happened to be —
@@ -99,27 +110,62 @@ fun MainScreen(viewModel: NewsViewModel) {
         drawerContent = {
             ModalDrawerSheet(drawerContainerColor = MaterialTheme.colorScheme.background) {
                 Text(
-                    "Categories",
+                    "Open Wire",
                     style = MaterialTheme.typography.titleLarge,
                     modifier = Modifier.padding(start = 20.dp, top = 24.dp, bottom = 12.dp)
                 )
+                NavigationDrawerItem(
+                    selected = !showSaved,
+                    icon = { Text("📰", fontSize = 18.sp) },
+                    label = { Text("Feed", style = MaterialTheme.typography.bodyMedium) },
+                    onClick = {
+                        showSaved = false
+                        scope.launch { drawerState.close() }
+                    },
+                    colors = drawerItemColors(),
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 3.dp)
+                )
+                NavigationDrawerItem(
+                    selected = showSaved,
+                    icon = { Text("🔖", fontSize = 18.sp) },
+                    label = {
+                        Text(
+                            if (savedStories.isNotEmpty()) "Saved (${savedStories.size})" else "Saved",
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                    },
+                    onClick = {
+                        showSaved = true
+                        scope.launch { drawerState.close() }
+                    },
+                    colors = drawerItemColors(),
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 3.dp)
+                )
+
+                androidx.compose.material3.HorizontalDivider(
+                    modifier = Modifier.padding(vertical = 12.dp, horizontal = 20.dp),
+                    color = MaterialTheme.colorScheme.outlineVariant
+                )
+
+                Text(
+                    "Categories",
+                    style = MaterialTheme.typography.titleMedium,
+                    modifier = Modifier.padding(start = 20.dp, bottom = 8.dp)
+                )
                 com.sriramanappindi.openwire.data.Feeds.CATEGORIES.forEach { cat ->
-                    val isSelected = cat == state.category
+                    val isSelected = !showSaved && cat == state.category
                     NavigationDrawerItem(
                         selected = isSelected,
                         icon = { Text(iconFor(cat), fontSize = 18.sp) },
                         label = { Text(cat, style = MaterialTheme.typography.bodyMedium) },
                         onClick = {
+                            showSaved = false
                             viewModel.setCategory(cat)
                             scope.launch { drawerState.close() }
                         },
-                        colors = NavigationDrawerItemDefaults.colors(
-                            selectedContainerColor = MaterialTheme.colorScheme.primary,
-                            selectedTextColor = MaterialTheme.colorScheme.onPrimary,
-                            selectedIconColor = MaterialTheme.colorScheme.onPrimary,
-                            unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                            unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant
-                        ),
+                        colors = drawerItemColors(),
                         shape = RoundedCornerShape(12.dp),
                         modifier = Modifier.padding(horizontal = 12.dp, vertical = 3.dp)
                     )
@@ -138,9 +184,13 @@ fun MainScreen(viewModel: NewsViewModel) {
                         },
                         title = {
                             Column {
-                                Text("Open Wire", style = MaterialTheme.typography.titleLarge)
+                                Text(if (showSaved) "Saved" else "Open Wire", style = MaterialTheme.typography.titleLarge)
                                 Text(
-                                    text = statusLine(state),
+                                    text = if (showSaved) {
+                                        if (savedStories.isEmpty()) "Nothing saved yet" else "${savedStories.size} article${if (savedStories.size == 1) "" else "s"}"
+                                    } else {
+                                        statusLine(state)
+                                    },
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
@@ -180,32 +230,52 @@ fun MainScreen(viewModel: NewsViewModel) {
                     onQueryChange = viewModel::setQuery,
                     region = state.region,
                     regions = regions,
-                    onRegionChange = viewModel::setRegion
+                    onRegionChange = viewModel::setRegion,
+                    showRegionPicker = !showSaved
                 )
 
                 when {
-                    filtered.isEmpty() && state.isLoading -> {
+                    showSaved && displayedStories.isEmpty() -> {
+                        EmptyState(
+                            if (savedStories.isEmpty()) {
+                                "Nothing saved yet. Tap \"Save\" on any story to keep it here for later."
+                            } else {
+                                "No saved stories match your search."
+                            }
+                        )
+                    }
+                    !showSaved && displayedStories.isEmpty() && state.isLoading -> {
                         LoadingState(region = state.region)
                     }
-                    filtered.isEmpty() && state.error != null && state.stories.isEmpty() -> {
+                    !showSaved && displayedStories.isEmpty() && state.error != null && state.stories.isEmpty() -> {
                         ErrorState(message = state.error.orEmpty(), onRetry = viewModel::refresh)
                     }
-                    filtered.isEmpty() -> {
-                        EmptyState()
+                    displayedStories.isEmpty() -> {
+                        EmptyState("No stories match. Try another category, region or search.")
                     }
                     else -> {
+                        val savedIds = remember(savedStories) { savedStories.mapTo(mutableSetOf()) { it.id } }
                         LazyColumn(
                             state = listState,
                             contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
                             verticalArrangement = Arrangement.spacedBy(16.dp)
                         ) {
-                            items(filtered, key = { it.id }) { story ->
+                            items(displayedStories, key = { it.id }) { story ->
                                 StoryCard(
                                     story = story,
+                                    isSaved = story.id in savedIds,
                                     onClick = {
                                         context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(story.link)))
                                     },
-                                    onCompare = { viewModel.compareCoverage(story) }
+                                    onCompare = { viewModel.compareCoverage(story) },
+                                    onToggleSave = { viewModel.toggleSaved(story) },
+                                    onShare = {
+                                        val sendIntent = Intent(Intent.ACTION_SEND).apply {
+                                            type = "text/plain"
+                                            putExtra(Intent.EXTRA_TEXT, "${story.title}\n${story.link}")
+                                        }
+                                        context.startActivity(Intent.createChooser(sendIntent, null))
+                                    }
                                 )
                             }
                         }
@@ -236,6 +306,15 @@ private fun statusLine(state: UiState): String {
     return "Live · updated $ago"
 }
 
+@Composable
+private fun drawerItemColors() = NavigationDrawerItemDefaults.colors(
+    selectedContainerColor = MaterialTheme.colorScheme.primary,
+    selectedTextColor = MaterialTheme.colorScheme.onPrimary,
+    selectedIconColor = MaterialTheme.colorScheme.onPrimary,
+    unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
+    unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant
+)
+
 /** Emoji read fine on every Android version/OEM skin without bundling an icon font. */
 private fun iconFor(category: String): String = when (category) {
     "All" -> "📰"
@@ -256,7 +335,8 @@ private fun SearchAndRegionRow(
     onQueryChange: (String) -> Unit,
     region: String,
     regions: List<String>,
-    onRegionChange: (String) -> Unit
+    onRegionChange: (String) -> Unit,
+    showRegionPicker: Boolean = true
 ) {
     Row(
         modifier = Modifier
@@ -282,16 +362,18 @@ private fun SearchAndRegionRow(
         )
 
         var showPicker by remember { mutableStateOf(false) }
-        Button(
-            onClick = { showPicker = true },
-            shape = RoundedCornerShape(24.dp),
-            colors = androidx.compose.material3.ButtonDefaults.buttonColors(
-                containerColor = MaterialTheme.colorScheme.primary,
-                contentColor = MaterialTheme.colorScheme.onPrimary
-            )
-        ) {
-            Text(region, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onPrimary)
-            Icon(Icons.Filled.ArrowDropDown, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimary)
+        if (showRegionPicker) {
+            Button(
+                onClick = { showPicker = true },
+                shape = RoundedCornerShape(24.dp),
+                colors = androidx.compose.material3.ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary
+                )
+            ) {
+                Text(region, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onPrimary)
+                Icon(Icons.Filled.ArrowDropDown, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimary)
+            }
         }
 
         if (showPicker) {
@@ -483,7 +565,14 @@ private fun CompareCoverageDialog(
 }
 
 @Composable
-private fun StoryCard(story: Story, onClick: () -> Unit, onCompare: () -> Unit) {
+private fun StoryCard(
+    story: Story,
+    isSaved: Boolean,
+    onClick: () -> Unit,
+    onCompare: () -> Unit,
+    onToggleSave: () -> Unit,
+    onShare: () -> Unit
+) {
     Card(
         onClick = onClick,
         modifier = Modifier.fillMaxWidth(),
@@ -554,15 +643,34 @@ private fun StoryCard(story: Story, onClick: () -> Unit, onCompare: () -> Unit) 
                 )
             }
 
-            Text(
-                "🌍  Compare coverage",
-                style = MaterialTheme.typography.bodySmall,
-                fontWeight = FontWeight.Medium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            Row(
                 modifier = Modifier
-                    .padding(top = 10.dp)
-                    .clickable(onClick = onCompare)
-            )
+                    .fillMaxWidth()
+                    .padding(top = 10.dp),
+                horizontalArrangement = Arrangement.spacedBy(20.dp)
+            ) {
+                Text(
+                    "🌍  Compare coverage",
+                    style = MaterialTheme.typography.bodySmall,
+                    fontWeight = FontWeight.Medium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.clickable(onClick = onCompare)
+                )
+                Text(
+                    if (isSaved) "✅  Saved" else "🔖  Save",
+                    style = MaterialTheme.typography.bodySmall,
+                    fontWeight = FontWeight.Medium,
+                    color = if (isSaved) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.clickable(onClick = onToggleSave)
+                )
+                Text(
+                    "↗  Share",
+                    style = MaterialTheme.typography.bodySmall,
+                    fontWeight = FontWeight.Medium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.clickable(onClick = onShare)
+                )
+            }
         }
     }
 }
@@ -593,10 +701,10 @@ private fun LoadingState(region: String) {
 }
 
 @Composable
-private fun EmptyState() {
+private fun EmptyState(message: String = "No stories match. Try another category, region or search.") {
     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         Text(
-            "No stories match. Try another category, region or search.",
+            message,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(32.dp),
             textAlign = androidx.compose.ui.text.style.TextAlign.Center
