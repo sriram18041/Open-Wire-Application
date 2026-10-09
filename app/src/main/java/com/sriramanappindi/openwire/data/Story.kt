@@ -11,5 +11,6 @@ data class Story(
     val summary: String,
     val link: String,
     val source: String,
-    val publishedAt: Long
+    val publishedAt: Long,
+    val imageUrl: String? = null
 )

@@ -26,7 +26,8 @@ class NewsCache(context: Context) {
                     summary = o.optString("summary"),
                     link = o.optString("link"),
                     source = o.optString("source"),
-                    publishedAt = o.optLong("publishedAt")
+                    publishedAt = o.optLong("publishedAt"),
+                    imageUrl = o.optString("imageUrl").takeIf { it.isNotBlank() }
                 )
             }
         } catch (_: Exception) {
@@ -47,6 +48,7 @@ class NewsCache(context: Context) {
                 o.put("link", s.link)
                 o.put("source", s.source)
                 o.put("publishedAt", s.publishedAt)
+                o.put("imageUrl", s.imageUrl ?: "")
                 arr.put(o)
             }
             file.writeText(arr.toString())

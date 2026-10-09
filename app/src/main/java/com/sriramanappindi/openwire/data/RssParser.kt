@@ -40,8 +40,12 @@ object RssParser {
     private fun toStory(el: Element, feed: FeedSource): Story? {
         val title = textOf(el, "title")?.let(::stripHtml)?.takeIf { it.isNotBlank() } ?: return null
         val link = linkOf(el)?.takeIf { it.isNotBlank() } ?: return null
-        val summaryRaw = textOf(el, "description") ?: textOf(el, "summary") ?: textOf(el, "content") ?: ""
-        val summary = stripHtml(summaryRaw).take(240)
+        val summaryRaw = textOf(el, "content:encoded")
+            ?: textOf(el, "description")
+            ?: textOf(el, "summary")
+            ?: textOf(el, "content")
+            ?: ""
+        val summary = stripHtml(summaryRaw).take(600)
         return Story(
             id = link,
             category = feed.category,
@@ -50,8 +54,42 @@ object RssParser {
             summary = summary,
             link = link,
             source = feed.sourceName,
-            publishedAt = dateOf(el)
+            publishedAt = dateOf(el),
+            imageUrl = imageOf(el, summaryRaw)
         )
+    }
+
+    /**
+     * Looks for an article image in roughly the order feeds are likely to
+     * provide one: explicit media tags first (usually a deliberate, correctly
+     * sized thumbnail), then an <enclosure>, then falls back to scraping the
+     * first <img> out of the HTML body — which is a guess, but better than no
+     * picture at all for feeds that only embed images inline.
+     */
+    private fun imageOf(el: Element, bodyHtml: String): String? {
+        firstAttr(el, "media:thumbnail", "url")?.let { return it }
+        firstAttr(el, "media:content", "url")?.let { return it }
+        val enclosures = el.getElementsByTagName("enclosure")
+        for (i in 0 until enclosures.length) {
+            val node = enclosures.item(i) as? Element ?: continue
+            val type = node.getAttribute("type")
+            val url = node.getAttribute("url")
+            if (url.isNotBlank() && (type.isBlank() || type.startsWith("image"))) return url
+        }
+        firstAttr(el, "itunes:image", "href")?.let { return it }
+        Regex("""<img[^>]+src=["']([^"']+)["']""", RegexOption.IGNORE_CASE)
+            .find(bodyHtml)?.groupValues?.get(1)?.let { return it }
+        return null
+    }
+
+    private fun firstAttr(parent: Element, tag: String, attr: String): String? {
+        val list = parent.getElementsByTagName(tag)
+        for (i in 0 until list.length) {
+            val node = list.item(i) as? Element ?: continue
+            val value = node.getAttribute(attr)
+            if (value.isNotBlank()) return value
+        }
+        return null
     }
 
     private fun textOf(parent: Element, tag: String): String? {
