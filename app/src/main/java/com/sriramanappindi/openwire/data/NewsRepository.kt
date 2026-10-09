@@ -62,10 +62,15 @@ class NewsRepository(private val cache: NewsCache) {
         }
         return try {
             connection.connect()
-            if (connection.responseCode in 200..299) {
-                connection.inputStream.use { stream -> RssParser.parse(stream, feed) }
+            val code = connection.responseCode
+            if (code in 200..299) {
+                val stories = connection.inputStream.use { stream -> RssParser.parse(stream, feed) }
+                if (stories.isEmpty()) {
+                    throw IllegalStateException("HTTP $code OK but 0 items parsed from ${feed.url}")
+                }
+                stories
             } else {
-                emptyList()
+                throw java.io.IOException("HTTP $code from ${feed.url}")
             }
         } finally {
             connection.disconnect()
