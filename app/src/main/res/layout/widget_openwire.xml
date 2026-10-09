@@ -1,0 +1,111 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="@drawable/widget_background"
+    android:paddingStart="16dp"
+    android:paddingEnd="16dp"
+    android:paddingTop="12dp"
+    android:paddingBottom="10dp">
+
+    <TextView
+        android:id="@+id/widget_header"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Open Wire"
+        android:textColor="#4FB3E8"
+        android:textStyle="bold"
+        android:textSize="13sp"
+        android:layout_marginBottom="8dp" />
+
+    <LinearLayout
+        android:id="@+id/widget_story_1"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:orientation="vertical"
+        android:layout_marginBottom="6dp">
+        <TextView
+            android:id="@+id/widget_title_1"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textColor="#F2F4F6"
+            android:textSize="13.5sp"
+            android:maxLines="2"
+            android:ellipsize="end"
+            android:text="Loading…" />
+        <TextView
+            android:id="@+id/widget_meta_1"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textColor="#93A1B0"
+            android:textSize="11sp"
+            android:maxLines="1"
+            android:text="" />
+    </LinearLayout>
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:background="#28323D"
+        android:layout_marginBottom="6dp" />
+
+    <LinearLayout
+        android:id="@+id/widget_story_2"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:orientation="vertical"
+        android:layout_marginBottom="6dp">
+        <TextView
+            android:id="@+id/widget_title_2"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textColor="#F2F4F6"
+            android:textSize="13.5sp"
+            android:maxLines="2"
+            android:ellipsize="end"
+            android:text="" />
+        <TextView
+            android:id="@+id/widget_meta_2"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textColor="#93A1B0"
+            android:textSize="11sp"
+            android:maxLines="1"
+            android:text="" />
+    </LinearLayout>
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:background="#28323D"
+        android:layout_marginBottom="6dp" />
+
+    <LinearLayout
+        android:id="@+id/widget_story_3"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:orientation="vertical">
+        <TextView
+            android:id="@+id/widget_title_3"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textColor="#F2F4F6"
+            android:textSize="13.5sp"
+            android:maxLines="2"
+            android:ellipsize="end"
+            android:text="" />
+        <TextView
+            android:id="@+id/widget_meta_3"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textColor="#93A1B0"
+            android:textSize="11sp"
+            android:maxLines="1"
+            android:text="" />
+    </LinearLayout>
+
+</LinearLayout>

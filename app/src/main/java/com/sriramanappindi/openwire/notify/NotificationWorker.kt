@@ -18,6 +18,7 @@ import com.sriramanappindi.openwire.data.Feeds
 import com.sriramanappindi.openwire.data.NewsCache
 import com.sriramanappindi.openwire.data.NewsRepository
 import com.sriramanappindi.openwire.data.Story
+import com.sriramanappindi.openwire.widget.OpenWireWidgetProvider
 
 /**
  * Periodic background check for genuinely new stories in whatever the
@@ -32,8 +33,6 @@ class NotificationWorker(appContext: Context, params: WorkerParameters) :
 
     override suspend fun doWork(): Result {
         val prefs = applicationContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        if (!prefs.getBoolean(KEY_NOTIFICATIONS_ENABLED, true)) return Result.success()
-        if (!canPostNotifications()) return Result.success()
 
         val region = prefs.getString(KEY_LAST_REGION, null)
         val feeds = Feeds.HOME + if (!region.isNullOrBlank() && region != "All regions") {
@@ -45,6 +44,13 @@ class NotificationWorker(appContext: Context, params: WorkerParameters) :
         val repository = NewsRepository(NewsCache(applicationContext))
         val stories = repository.refresh(feeds).getOrNull() ?: return Result.retry()
 
+        // Keep the home screen widget fresh regardless of whether the
+        // person wants notifications — those are two separate preferences,
+        // and this background fetch is the only way the widget ever gets
+        // new data without the app being opened in the foreground.
+        OpenWireWidgetProvider.refreshAll(applicationContext)
+
+        val notificationsWanted = prefs.getBoolean(KEY_NOTIFICATIONS_ENABLED, true)
         val watermark = prefs.getLong(KEY_WATERMARK, 0L)
         val freshest = stories.maxOfOrNull { it.publishedAt } ?: 0L
 
@@ -53,7 +59,7 @@ class NotificationWorker(appContext: Context, params: WorkerParameters) :
         // about the person's entire existing feed the moment they grant
         // permission, which is exactly the kind of launch-day spam a
         // notification feature shouldn't start with.
-        if (watermark > 0L) {
+        if (notificationsWanted && canPostNotifications() && watermark > 0L) {
             val fresh = stories.filter { it.publishedAt > watermark }
             if (fresh.isNotEmpty()) notify(fresh)
         }

@@ -14,6 +14,7 @@ import com.sriramanappindi.openwire.data.NewsRepository
 import com.sriramanappindi.openwire.data.SavedStore
 import com.sriramanappindi.openwire.data.Story
 import com.sriramanappindi.openwire.data.StoryMatcher
+import com.sriramanappindi.openwire.widget.OpenWireWidgetProvider
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -108,6 +109,7 @@ class NewsViewModel(
                 .onFailure { e ->
                     _state.update { it.copy(isLoading = false, error = e.message ?: "Couldn't refresh") }
                 }
+            OpenWireWidgetProvider.refreshAll(appContext)
         }
     }
 
@@ -145,6 +147,7 @@ class NewsViewModel(
                 .onFailure { e ->
                     _state.update { it.copy(isLoading = false, error = e.message ?: "Couldn't load that region") }
                 }
+            OpenWireWidgetProvider.refreshAll(appContext)
         }
     }
 

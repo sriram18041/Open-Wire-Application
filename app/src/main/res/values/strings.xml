@@ -2,4 +2,5 @@
 <resources>
     <string name="app_name">Open Wire</string>
     <string name="tagline">The world, live.</string>
+    <string name="widget_description">The latest headlines from your feed, right on your home screen.</string>
 </resources>
