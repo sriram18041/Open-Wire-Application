@@ -622,6 +622,8 @@ private fun SettingsDialog(
     onDismiss: () -> Unit
 ) {
     var notificationsEnabled by remember { mutableStateOf(initiallyEnabled) }
+    var testResult by remember { mutableStateOf<String?>(null) }
+    val context = LocalContext.current
 
     Dialog(onDismissRequest = onDismiss) {
         Surface(
@@ -656,6 +658,30 @@ private fun SettingsDialog(
                             notificationsEnabled = it
                             onToggleNotifications(it)
                         }
+                    )
+                }
+
+                Text(
+                    "Send test notification",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier
+                        .padding(top = 10.dp)
+                        .clickable {
+                            val sent = com.sriramanappindi.openwire.notify.TestNotification.send(context)
+                            testResult = if (sent) {
+                                "Sent — check your notification shade."
+                            } else {
+                                "Notifications are blocked for Open Wire in your phone's system settings."
+                            }
+                        }
+                )
+                if (testResult != null) {
+                    Text(
+                        testResult.orEmpty(),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 4.dp)
                     )
                 }
 

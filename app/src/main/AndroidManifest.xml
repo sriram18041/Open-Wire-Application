@@ -32,9 +32,13 @@
             </intent-filter>
         </activity>
 
+        <!-- Must be exported: the home screen launcher is a different app
+             and has to be able to broadcast APPWIDGET_UPDATE to this
+             receiver to bind and refresh the widget. Android still protects
+             it — only the system can actually deliver that broadcast. -->
         <receiver
             android:name=".widget.OpenWireWidgetProvider"
-            android:exported="false">
+            android:exported="true">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
             </intent-filter>
