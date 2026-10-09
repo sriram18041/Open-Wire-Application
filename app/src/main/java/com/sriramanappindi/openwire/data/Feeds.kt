@@ -66,36 +66,48 @@ object Feeds {
     )
 
     /**
-     * Google News publishes one RSS feed per (country, topic) pair, built
-     * from a single predictable URL formula rather than one site per
-     * country. That's what makes near-global coverage practical here —
-     * hand-sourcing a native outlet for ~190 individual countries isn't
-     * something that can be done reliably without fetching every single
-     * one to check it's alive. Headlines come back in English for every
-     * country so the whole catalog stays readable.
+     * Google News only has a genuine *edition* (a locally-reported, country
+     * specific feed) for a couple dozen countries, and only a handful of
+     * those have an English-language edition — requesting an unsupported
+     * combination (e.g. an English edition of France's news) doesn't error,
+     * it silently serves back unrelated content, which is what made
+     * per-country feeds look mismatched. Google News' *search* endpoint
+     * sidesteps that: querying for the country's own name (plus a category
+     * keyword) through the one edition that's always valid (US English)
+     * reliably returns English-language stories that are actually about
+     * that country, for all ~190 countries alike, with no per-country
+     * edition table to maintain and no translation step needed.
      */
-    private val GOOGLE_NEWS_TOPIC: Map<String, String> = mapOf(
-        "World" to "WORLD",
-        "Politics" to "NATION",
-        "Business" to "BUSINESS",
-        "Tech" to "TECHNOLOGY",
-        "Science" to "SCIENCE",
-        "Sports" to "SPORTS",
-        "Entertainment" to "ENTERTAINMENT"
+    private val GOOGLE_NEWS_CATEGORY_KEYWORD: Map<String, String> = mapOf(
+        "World" to "",
+        "Politics" to "politics",
+        "Business" to "business",
+        "Tech" to "technology",
+        "Science" to "science",
+        "Sports" to "sports",
+        "Entertainment" to "entertainment"
     )
 
-    private fun googleNewsUrl(topic: String, countryCode: String): String =
-        "https://news.google.com/rss/headlines/section/topic/$topic?hl=en-$countryCode&gl=$countryCode&ceid=$countryCode:en"
+    /** How far back Google News search should look, so feeds stay current rather than surfacing old stories. */
+    private const val GOOGLE_NEWS_WINDOW = "when:7d"
 
-    private fun googleNewsFeeds(countryCode: String, regionName: String): List<FeedSource> =
-        GOOGLE_NEWS_TOPIC.map { (category, topic) ->
-            FeedSource(googleNewsUrl(topic, countryCode), category, regionName, "Google News")
+    private fun googleNewsSearchUrl(country: String, categoryKeyword: String): String {
+        val phrase = if (country.contains(" ")) "\"$country\"" else country
+        val query = listOfNotNull(phrase, categoryKeyword.ifBlank { null }, GOOGLE_NEWS_WINDOW)
+            .joinToString(" ")
+        val encoded = java.net.URLEncoder.encode(query, "UTF-8").replace("+", "%20")
+        return "https://news.google.com/rss/search?q=$encoded&hl=en-US&gl=US&ceid=US:en"
+    }
+
+    private fun googleNewsFeeds(country: String, regionName: String): List<FeedSource> =
+        GOOGLE_NEWS_CATEGORY_KEYWORD.map { (category, keyword) ->
+            FeedSource(googleNewsSearchUrl(country, keyword), category, regionName, "Google News")
         }
 
-    /** One country's feed for a single category, or null if the category has no Google News topic. */
-    fun feedFor(category: String, countryCode: String, regionName: String): FeedSource? {
-        val topic = GOOGLE_NEWS_TOPIC[category] ?: return null
-        return FeedSource(googleNewsUrl(topic, countryCode), category, regionName, "Google News")
+    /** One country's feed for a single category, or null if the category isn't searchable this way. */
+    fun feedFor(category: String, country: String, regionName: String): FeedSource? {
+        val keyword = GOOGLE_NEWS_CATEGORY_KEYWORD[category] ?: return null
+        return FeedSource(googleNewsSearchUrl(country, keyword), category, regionName, "Google News")
     }
 
     /**
@@ -106,24 +118,16 @@ object Feeds {
      * set is triggered by one person tapping "compare" on one story, so it
      * has to stay small and fast rather than exhaustive.
      */
-    val WORLD_LENS_COUNTRIES: List<Pair<String, String>> = listOf(
-        "United States" to "US",
-        "UK" to "GB",
-        "India" to "IN",
-        "France" to "FR",
-        "Germany" to "DE",
-        "Japan" to "JP",
-        "Brazil" to "BR",
-        "Nigeria" to "NG",
-        "Australia" to "AU",
-        "South Korea" to "KR"
+    val WORLD_LENS_COUNTRIES: List<String> = listOf(
+        "United States", "UK", "India", "France", "Germany",
+        "Japan", "Brazil", "Nigeria", "Australia", "South Korea"
     )
 
     /** The world-lens feed set for one category, skipping a region (typically the story's own, already loaded). */
     fun worldLensFeedsFor(category: String, excludingRegion: String? = null): List<FeedSource> =
         WORLD_LENS_COUNTRIES
-            .filter { (name, _) -> name != excludingRegion }
-            .mapNotNull { (name, code) -> feedFor(category, code, name) }
+            .filter { it != excludingRegion }
+            .mapNotNull { name -> feedFor(category, name, name) }
 
     /** ISO 3166-1 country name -> two-letter code, for every country the region picker can search. */
     val COUNTRIES: List<Pair<String, String>> = listOf(
@@ -213,10 +217,9 @@ object Feeds {
      * category the tapped story is already in.
      */
     fun compareFeedsFor(category: String): List<FeedSource> {
-        val topic = GOOGLE_NEWS_TOPIC[category] ?: return emptyList()
-        return COMPARE_REGIONS.mapNotNull { name ->
-            val code = COUNTRIES.firstOrNull { it.first == name }?.second ?: return@mapNotNull null
-            FeedSource(googleNewsUrl(topic, code), category, name, "Google News")
+        val keyword = GOOGLE_NEWS_CATEGORY_KEYWORD[category] ?: return emptyList()
+        return COMPARE_REGIONS.map { name ->
+            FeedSource(googleNewsSearchUrl(name, keyword), category, name, "Google News")
         }
     }
 
@@ -228,8 +231,8 @@ object Feeds {
      */
     fun feedsFor(region: String): List<FeedSource> {
         val curated = HOME.filter { it.region == region }
-        val code = COUNTRIES.firstOrNull { it.first == region }?.second
-        val generated = if (code != null) googleNewsFeeds(code, region) else emptyList()
+        val isCountry = COUNTRIES.any { it.first == region }
+        val generated = if (isCountry) googleNewsFeeds(region, region) else emptyList()
         return curated + generated
     }
 }
