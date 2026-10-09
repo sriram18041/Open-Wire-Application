@@ -12,13 +12,18 @@ class NewsRepository(private val cache: NewsCache) {
     fun cached(): List<Story> = cache.load()
 
     /**
-     * Fetches every feed in parallel. A feed that fails (network, parse,
-     * geo-block) just contributes nothing rather than failing the whole
-     * refresh. Only reports failure when literally everything failed AND
-     * there is no cache to fall back on.
+     * Fetches the given feeds in parallel. A feed that fails (network,
+     * parse, geo-block) just contributes nothing rather than failing the
+     * whole refresh. Only reports failure when literally everything failed
+     * AND there is no cache to fall back on.
+     *
+     * Callers pass only the feeds they currently care about — with ~190
+     * countries in the catalog, fetching all of them on every refresh would
+     * be slow, data-heavy, and likely to get rate-limited, so the caller
+     * (the view model) decides which regions are "active" right now.
      */
-    suspend fun refresh(): Result<List<Story>> = coroutineScope {
-        val deferred = Feeds.ALL.map { feed ->
+    suspend fun refresh(feeds: List<FeedSource>): Result<List<Story>> = coroutineScope {
+        val deferred = feeds.map { feed ->
             async(Dispatchers.IO) {
                 runCatching { fetchFeed(feed) }
                     .onFailure { e ->

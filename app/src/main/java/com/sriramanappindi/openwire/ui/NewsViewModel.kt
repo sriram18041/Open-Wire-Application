@@ -6,6 +6,8 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
+import com.sriramanappindi.openwire.data.FeedSource
+import com.sriramanappindi.openwire.data.Feeds
 import com.sriramanappindi.openwire.data.NewsCache
 import com.sriramanappindi.openwire.data.NewsRepository
 import com.sriramanappindi.openwire.data.Story
@@ -25,7 +27,9 @@ data class UiState(
     val lastUpdated: Long = 0L,
     val category: String = "All",
     val region: String = "All regions",
-    val query: String = ""
+    val query: String = "",
+    /** Regions whose feeds have been fetched into [stories] this session, beyond the default Feeds.HOME set. */
+    val loadedRegions: Set<String> = emptySet()
 )
 
 class NewsViewModel(private val repository: NewsRepository) : ViewModel() {
@@ -47,10 +51,18 @@ class NewsViewModel(private val repository: NewsRepository) : ViewModel() {
         }
     }
 
+    /** Feeds.HOME plus the feeds for every region the person has opened this session. */
+    private fun activeFeeds(state: UiState): List<FeedSource> {
+        val extra = state.loadedRegions.flatMap { Feeds.feedsFor(it) }
+        return (Feeds.HOME + extra).distinctBy { it.url to it.category }
+    }
+
+    /** Re-fetches everything currently in view: the default feeds plus any region the person has opened. */
     fun refresh() {
         viewModelScope.launch {
             _state.update { it.copy(isLoading = true, error = null) }
-            repository.refresh()
+            val feeds = activeFeeds(_state.value)
+            repository.refresh(feeds)
                 .onSuccess { stories ->
                     _state.update {
                         it.copy(
@@ -68,14 +80,39 @@ class NewsViewModel(private val repository: NewsRepository) : ViewModel() {
     }
 
     fun setCategory(category: String) = _state.update { it.copy(category = category) }
-    fun setRegion(region: String) = _state.update { it.copy(region = region) }
     fun setQuery(query: String) = _state.update { it.copy(query = query) }
 
-    fun regionsFor(stories: List<Story>): List<String> {
-        val regions = linkedSetOf("All regions")
-        stories.forEach { regions.add(it.region) }
-        return regions.toList()
+    /** Picking a region the app hasn't fetched yet triggers a one-off fetch of just that region's feeds. */
+    fun setRegion(region: String) {
+        _state.update { it.copy(region = region) }
+        val alreadyLoaded = region == "All regions" ||
+            _state.value.loadedRegions.contains(region) ||
+            Feeds.feedsFor(region).isEmpty()
+        if (alreadyLoaded) return
+
+        _state.update { it.copy(loadedRegions = it.loadedRegions + region) }
+        viewModelScope.launch {
+            _state.update { it.copy(isLoading = true, error = null) }
+            val feeds = activeFeeds(_state.value)
+            repository.refresh(feeds)
+                .onSuccess { stories ->
+                    _state.update {
+                        it.copy(
+                            stories = stories,
+                            isLoading = false,
+                            lastUpdated = System.currentTimeMillis(),
+                            error = null
+                        )
+                    }
+                }
+                .onFailure { e ->
+                    _state.update { it.copy(isLoading = false, error = e.message ?: "Couldn't load that region") }
+                }
+        }
     }
+
+    /** Every region name the picker can offer, available before anything beyond HOME has loaded. */
+    fun allRegions(): List<String> = listOf("All regions") + Feeds.ALL_REGION_NAMES
 
     fun filtered(state: UiState): List<Story> {
         val q = state.query.trim().lowercase()

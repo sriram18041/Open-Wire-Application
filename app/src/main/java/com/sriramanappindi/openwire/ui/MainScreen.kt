@@ -76,7 +76,7 @@ fun MainScreen(viewModel: NewsViewModel) {
     val state by viewModel.state.collectAsState()
     val context = LocalContext.current
     val filtered = viewModel.filtered(state)
-    val regions = viewModel.regionsFor(state.stories)
+    val regions = viewModel.allRegions()
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope = rememberCoroutineScope()
     val listState = rememberLazyListState()
@@ -181,6 +181,9 @@ fun MainScreen(viewModel: NewsViewModel) {
                 )
 
                 when {
+                    filtered.isEmpty() && state.isLoading -> {
+                        LoadingState(region = state.region)
+                    }
                     filtered.isEmpty() && state.error != null && state.stories.isEmpty() -> {
                         ErrorState(message = state.error.orEmpty(), onRetry = viewModel::refresh)
                     }
@@ -448,6 +451,20 @@ private fun timeAgo(publishedAt: Long): String {
         minutes < 60 -> "${minutes}m ago"
         minutes < 1440 -> "${minutes / 60}h ago"
         else -> SimpleDateFormat("d MMM", Locale.getDefault()).format(java.util.Date(publishedAt))
+    }
+}
+
+@Composable
+private fun LoadingState(region: String) {
+    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
+            Text(
+                if (region == "All regions") "Loading headlines…" else "Loading $region headlines…",
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 14.dp)
+            )
+        }
     }
 }
 
