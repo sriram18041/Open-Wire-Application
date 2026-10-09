@@ -1,0 +1,56 @@
+name: Build Open Wire
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch: {}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+
+      - name: Decode signing keystore
+        env:
+          OPENWIRE_KEYSTORE_BASE64: ${{ secrets.OPENWIRE_KEYSTORE_BASE64 }}
+        run: |
+          echo "$OPENWIRE_KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/openwire-upload-key.jks"
+
+      - name: Build release app bundle (.aab)
+        env:
+          OPENWIRE_KEYSTORE_PATH: ${{ runner.temp }}/openwire-upload-key.jks
+          OPENWIRE_KEYSTORE_PASSWORD: ${{ secrets.OPENWIRE_KEYSTORE_PASSWORD }}
+          OPENWIRE_KEY_ALIAS: ${{ secrets.OPENWIRE_KEY_ALIAS }}
+          OPENWIRE_KEY_PASSWORD: ${{ secrets.OPENWIRE_KEY_PASSWORD }}
+        run: gradle :app:bundleRelease --no-daemon
+
+      - name: Build debug APK (for quick sideload testing)
+        run: gradle :app:assembleDebug --no-daemon
+
+      - name: Upload release bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: openwire-release-aab
+          path: app/build/outputs/bundle/release/app-release.aab
+
+      - name: Upload debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: openwire-debug-apk
+          path: app/build/outputs/apk/debug/app-debug.apk

@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- two wire ends reaching toward an open gap: the "open wire" mark -->
+    <path
+        android:pathData="M22,50 L44,50 A6,6 0 0 1 44,62 L22,62 A6,6 0 0 1 22,50 Z"
+        android:fillColor="#4FB3E8" />
+    <path
+        android:pathData="M64,50 L86,50 A6,6 0 0 1 86,62 L64,62 A6,6 0 0 1 64,50 Z"
+        android:fillColor="#4FB3E8" />
+    <path
+        android:pathData="M54,56 m-5,0 a5,5 0 1 0 10,0 a5,5 0 1 0 -10,0 Z"
+        android:fillColor="#FF6B6B" />
+</vector>
