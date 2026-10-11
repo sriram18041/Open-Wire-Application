@@ -73,7 +73,7 @@ class NewsViewModel(
     init {
         val cached = repository.cached()
         if (cached.isNotEmpty()) {
-            _state.update { it.copy(stories = cached, isLoading = false) }
+            _state.update { it.copy(stories = cached, isLoading = false, lastUpdated = repository.cachedAt()) }
         }
         refresh()
         viewModelScope.launch {

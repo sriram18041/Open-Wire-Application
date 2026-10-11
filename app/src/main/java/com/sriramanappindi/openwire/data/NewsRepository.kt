@@ -18,6 +18,9 @@ class NewsRepository(private val cache: NewsCache) {
 
     fun cached(): List<Story> = cache.load()
 
+    /** When [cached] was last successfully written, or 0L if there's no cache yet. */
+    fun cachedAt(): Long = cache.savedAt()
+
     /**
      * Fetches the given feeds in parallel. A feed that fails (network,
      * parse, geo-block) just contributes nothing rather than failing the

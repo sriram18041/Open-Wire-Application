@@ -8,15 +8,23 @@ import java.io.File
 /**
  * On-disk cache so the app has something to show instantly on launch and
  * while offline, instead of a blank screen until the network responds.
+ * Stores when it was last written alongside the stories themselves, so the
+ * UI can be honest about how stale what it's showing is (see [savedAt]).
  */
 class NewsCache(context: Context) {
     private val file: File = File(context.filesDir, "stories_cache.json")
 
-    fun load(): List<Story> {
+    fun load(): List<Story> = readFile()?.first ?: emptyList()
+
+    /** Millis of the last successful [save], or 0L if there's no cache yet. */
+    fun savedAt(): Long = readFile()?.second ?: 0L
+
+    private fun readFile(): Pair<List<Story>, Long>? {
         return try {
-            if (!file.exists()) return emptyList()
-            val arr = JSONArray(file.readText())
-            (0 until arr.length()).mapNotNull { i ->
+            if (!file.exists()) return null
+            val root = JSONObject(file.readText())
+            val arr = root.getJSONArray("stories")
+            val stories = (0 until arr.length()).mapNotNull { i ->
                 val o = arr.optJSONObject(i) ?: return@mapNotNull null
                 Story(
                     id = o.optString("id"),
@@ -30,8 +38,9 @@ class NewsCache(context: Context) {
                     imageUrl = o.optString("imageUrl").takeIf { it.isNotBlank() }
                 )
             }
+            stories to root.optLong("savedAt", 0L)
         } catch (_: Exception) {
-            emptyList()
+            null
         }
     }
 
@@ -51,7 +60,10 @@ class NewsCache(context: Context) {
                 o.put("imageUrl", s.imageUrl ?: "")
                 arr.put(o)
             }
-            file.writeText(arr.toString())
+            val root = JSONObject()
+            root.put("savedAt", System.currentTimeMillis())
+            root.put("stories", arr)
+            file.writeText(root.toString())
         } catch (_: Exception) {
             // Best-effort cache; a failed write just means a blanker cold start next time.
         }

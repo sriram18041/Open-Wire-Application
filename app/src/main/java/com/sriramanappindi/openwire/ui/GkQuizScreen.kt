@@ -21,6 +21,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -30,6 +31,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import com.sriramanappindi.openwire.games.GameStreakStore
 import com.sriramanappindi.openwire.games.GkQuiz
 import com.sriramanappindi.openwire.games.GkQuizStore
 import com.sriramanappindi.openwire.games.localEpochDay
@@ -50,6 +52,11 @@ fun GkQuizScreen(onBack: () -> Unit) {
 
     val allAnswered = answers.none { it == -1 }
     val score = questions.indices.count { answers[it] == questions[it].correctIndex }
+    val streakStore = remember { GameStreakStore(context, GameStreakStore.GK_QUIZ) }
+
+    LaunchedEffect(allAnswered) {
+        if (allAnswered) streakStore.recordSolved(epochDay)
+    }
 
     fun choose(optionIndex: Int) {
         if (answers[current] != -1) return // already locked in, no changing it

@@ -1,4 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- Fallback for API < 26, where <adaptive-icon> (mipmap-anydpi-v26) doesn't
+     apply and the launcher can't mask/animate the icon itself — just the
+     flat background+foreground stack, same artwork, no per-OEM shape. -->
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
     <item android:drawable="@drawable/ic_launcher_background" />
     <item android:drawable="@drawable/ic_launcher_foreground" />

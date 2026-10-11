@@ -5,6 +5,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -23,10 +24,12 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.sriramanappindi.openwire.games.ChessPuzzleStore
+import com.sriramanappindi.openwire.games.GameStreakStore
 import com.sriramanappindi.openwire.games.GkQuiz
 import com.sriramanappindi.openwire.games.GkQuizStore
 import com.sriramanappindi.openwire.games.SudokuStore
@@ -42,11 +45,15 @@ fun GamesScreen(
 ) {
     BackHandler(onBack = onBack)
     val context = LocalContext.current
+    val epochDay = remember { localEpochDay() }
     val sudokuSolved = SudokuStore.isSolvedToday(context)
     val chessSolved = ChessPuzzleStore.isSolvedToday(context)
     val gkSolved = GkQuizStore.isSolvedToday(context)
     val gkScore = if (gkSolved) GkQuizStore.scoreToday(context) else 0
-    val gkQuestionCount = remember { GkQuiz.forDay(localEpochDay()).size }
+    val gkQuestionCount = remember { GkQuiz.forDay(epochDay).size }
+    val sudokuStreak = remember { GameStreakStore(context, GameStreakStore.SUDOKU).currentStreak(epochDay) }
+    val chessStreak = remember { GameStreakStore(context, GameStreakStore.CHESS).currentStreak(epochDay) }
+    val gkStreak = remember { GameStreakStore(context, GameStreakStore.GK_QUIZ).currentStreak(epochDay) }
 
     Scaffold(
         topBar = {
@@ -73,6 +80,7 @@ fun GamesScreen(
                 title = "Sudoku",
                 subtitle = "A new puzzle every day — same one for everyone",
                 solved = sudokuSolved,
+                streak = sudokuStreak,
                 onClick = onOpenSudoku
             )
             GameCard(
@@ -80,6 +88,7 @@ fun GamesScreen(
                 title = "Chess puzzle",
                 subtitle = "White to move — find the mate in one",
                 solved = chessSolved,
+                streak = chessStreak,
                 onClick = onOpenChess
             )
             GameCard(
@@ -87,6 +96,7 @@ fun GamesScreen(
                 title = "GK Quiz",
                 subtitle = "$gkQuestionCount quick general-knowledge questions, new every day",
                 solved = gkSolved,
+                streak = gkStreak,
                 solvedSubtitle = "Scored $gkScore / $gkQuestionCount today — come back tomorrow",
                 onClick = onOpenGkQuiz
             )
@@ -101,6 +111,7 @@ private fun GameCard(
     subtitle: String,
     solved: Boolean,
     onClick: () -> Unit,
+    streak: Int = 0,
     solvedSubtitle: String = "Solved today — come back tomorrow"
 ) {
     Card(
@@ -110,7 +121,20 @@ private fun GameCard(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
     ) {
         Column(modifier = Modifier.padding(18.dp)) {
-            Text("$emoji  $title" + if (solved) "  ✅" else "", style = MaterialTheme.typography.titleMedium)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    "$emoji  $title" + if (solved) "  ✅" else "",
+                    style = MaterialTheme.typography.titleMedium,
+                    modifier = Modifier.weight(1f)
+                )
+                if (streak > 0) {
+                    Text(
+                        "🔥 $streak",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+            }
             Text(
                 if (solved) solvedSubtitle else subtitle,
                 style = MaterialTheme.typography.bodySmall,

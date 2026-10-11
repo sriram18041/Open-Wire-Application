@@ -37,6 +37,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.sriramanappindi.openwire.games.GameStreakStore
 import com.sriramanappindi.openwire.games.SudokuGenerator
 import com.sriramanappindi.openwire.games.SudokuStore
 import com.sriramanappindi.openwire.games.localEpochDay
@@ -53,9 +54,14 @@ fun SudokuScreen(onBack: () -> Unit) {
     var cells by remember { mutableStateOf(store.load(epochDay) ?: puzzle.givens.copyOf()) }
     var selected by remember { mutableStateOf<Int?>(null) }
     val isSolved = cells.contentEquals(puzzle.solution)
+    val streakStore = remember { GameStreakStore(context, GameStreakStore.SUDOKU) }
 
     LaunchedEffect(cells) {
         store.save(epochDay, cells)
+    }
+
+    LaunchedEffect(isSolved) {
+        if (isSolved) streakStore.recordSolved(epochDay)
     }
 
     Scaffold(

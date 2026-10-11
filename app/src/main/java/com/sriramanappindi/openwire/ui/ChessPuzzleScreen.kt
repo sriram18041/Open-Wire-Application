@@ -37,6 +37,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.sriramanappindi.openwire.games.ChessBoard
 import com.sriramanappindi.openwire.games.ChessPuzzleStore
+import com.sriramanappindi.openwire.games.GameStreakStore
 import com.sriramanappindi.openwire.games.ChessPuzzles
 import com.sriramanappindi.openwire.games.localEpochDay
 import kotlinx.coroutines.delay
@@ -64,12 +65,17 @@ fun ChessPuzzleScreen(onBack: () -> Unit) {
     var wrongSquare by remember { mutableStateOf<Int?>(null) }
     var showHint by remember { mutableStateOf(false) }
     val isSolved = movesPlayed >= puzzle.solutionUci.size
+    val streakStore = remember { GameStreakStore(context, GameStreakStore.CHESS) }
 
     LaunchedEffect(wrongSquare) {
         if (wrongSquare != null) {
             delay(450)
             wrongSquare = null
         }
+    }
+
+    LaunchedEffect(isSolved) {
+        if (isSolved) streakStore.recordSolved(epochDay)
     }
 
     fun handleTap(idx: Int) {

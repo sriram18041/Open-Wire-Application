@@ -3,6 +3,7 @@ package com.sriramanappindi.openwire.ui
 import android.content.Intent
 import android.net.Uri
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -44,6 +45,7 @@ import androidx.compose.material3.NavigationDrawerItem
 import androidx.compose.material3.NavigationDrawerItemDefaults
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
@@ -70,6 +72,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import coil.compose.AsyncImage
+import com.sriramanappindi.openwire.data.OnboardingStore
 import com.sriramanappindi.openwire.data.Story
 import java.text.SimpleDateFormat
 import java.util.Locale
@@ -83,11 +86,22 @@ private enum class AppScreen { FEED, SAVED, GAMES, SUDOKU, CHESS, GKQUIZ }
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MainScreen(viewModel: NewsViewModel) {
+    val context = LocalContext.current
+    var showOnboarding by remember { mutableStateOf(!OnboardingStore.hasSeenOnboarding(context)) }
+    if (showOnboarding) {
+        OnboardingScreen(
+            onDone = {
+                OnboardingStore.markSeen(context)
+                showOnboarding = false
+            }
+        )
+        return
+    }
+
     val state by viewModel.state.collectAsState()
     val compareState by viewModel.compare.collectAsState()
     val framingState by viewModel.framing.collectAsState()
     val savedStories by viewModel.saved.collectAsState()
-    val context = LocalContext.current
     val filtered = viewModel.filtered(state)
     val regions = viewModel.allRegions()
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
@@ -302,6 +316,17 @@ fun MainScreen(viewModel: NewsViewModel) {
                     showRegionPicker = screen != AppScreen.SAVED
                 )
 
+                if (screen != AppScreen.SAVED && state.error != null && displayedStories.isNotEmpty()) {
+                    OfflineBanner(timestamp = state.lastUpdated, onRetry = viewModel::refresh)
+                }
+
+                PullToRefreshBox(
+                    isRefreshing = state.isLoading,
+                    onRefresh = { viewModel.refresh() },
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxSize()
+                ) {
                 when {
                     screen == AppScreen.SAVED && displayedStories.isEmpty() -> {
                         EmptyState(
@@ -350,6 +375,7 @@ fun MainScreen(viewModel: NewsViewModel) {
                         }
                     }
                 }
+                }
             }
         }
         }
@@ -393,6 +419,37 @@ private fun statusLine(state: UiState): String {
         else -> "${minutes / 60}h ago"
     }
     return "Live · updated $ago"
+}
+
+/**
+ * Shown above the list when the latest refresh failed but there are still
+ * stories on screen (cached ones, or whatever the last successful fetch
+ * brought back) — so a failed refresh is visible instead of silently
+ * leaving stale content with no explanation.
+ */
+@Composable
+private fun OfflineBanner(timestamp: Long, onRetry: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(MaterialTheme.colorScheme.errorContainer)
+            .clickable(onClick = onRetry)
+            .padding(horizontal = 16.dp, vertical = 10.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            if (timestamp > 0) "Offline — showing stories from ${timeAgo(timestamp)}" else "Offline — couldn't load stories",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onErrorContainer
+        )
+        Text(
+            "Retry",
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = FontWeight.Medium,
+            color = MaterialTheme.colorScheme.onErrorContainer
+        )
+    }
 }
 
 @Composable
