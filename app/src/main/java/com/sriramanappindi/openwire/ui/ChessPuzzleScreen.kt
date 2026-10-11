@@ -12,6 +12,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material3.Button
@@ -31,6 +33,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
@@ -66,6 +69,17 @@ fun ChessPuzzleScreen(onBack: () -> Unit) {
     var showHint by remember { mutableStateOf(false) }
     val isSolved = movesPlayed >= puzzle.solutionUci.size
     val streakStore = remember { GameStreakStore(context, GameStreakStore.CHESS) }
+
+    // The board has no general move-legality checker (see ChessBoard.kt) —
+    // it only ever knows the one correct move for the current puzzle step.
+    // So rather than computing every legal move for a selected piece (which
+    // would mean building real chess rules just for this), the hint is
+    // narrower but still answers the actual question a beginner has: once
+    // they've tapped the piece that's actually part of the solution, show
+    // exactly where it needs to go. Tapping any other piece shows nothing,
+    // which is itself a nudge to try a different one.
+    val expectedMove = if (!isSolved) ChessBoard.parseUci(puzzle.solutionUci[movesPlayed]) else null
+    val hintSquare = expectedMove?.let { move -> if (selected == move.from) move.to else null }
 
     LaunchedEffect(wrongSquare) {
         if (wrongSquare != null) {
@@ -118,7 +132,12 @@ fun ChessPuzzleScreen(onBack: () -> Unit) {
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Text(
-                if (isSolved) "🎉 Checkmate! Come back tomorrow for a new one." else "White to move — find the mate in one",
+                when {
+                    isSolved -> "🎉 Checkmate! Come back tomorrow for a new one."
+                    selected != null && hintSquare != null -> "Tap the glowing square to move there."
+                    selected != null -> "That piece doesn't have the mating move — try another one."
+                    else -> "White to move — find the mate in one. Tap a white piece to select it."
+                },
                 style = MaterialTheme.typography.bodyMedium,
                 color = if (isSolved) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(start = 24.dp, top = 8.dp, end = 24.dp)
@@ -128,6 +147,7 @@ fun ChessPuzzleScreen(onBack: () -> Unit) {
                 board = board,
                 selected = selected,
                 wrongSquare = wrongSquare,
+                hintSquare = hintSquare,
                 onTap = ::handleTap
             )
 
@@ -152,12 +172,14 @@ private fun ChessBoardView(
     board: Array<Char?>,
     selected: Int?,
     wrongSquare: Int?,
+    hintSquare: Int?,
     onTap: (Int) -> Unit
 ) {
     val lightSquare = Color(0xFFE8D3B9)
     val darkSquare = Color(0xFF8E6A4F)
     val selectedColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.55f)
     val wrongColor = MaterialTheme.colorScheme.error.copy(alpha = 0.55f)
+    val hintDotColor = MaterialTheme.colorScheme.primary
 
     Box(
         modifier = Modifier
@@ -185,6 +207,14 @@ private fun ChessBoardView(
                                 .clickable { onTap(idx) },
                             contentAlignment = Alignment.Center
                         ) {
+                            if (idx == hintSquare) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(16.dp)
+                                        .clip(CircleShape)
+                                        .background(hintDotColor.copy(alpha = 0.65f))
+                                )
+                            }
                             val piece = board[idx]
                             ChessBoard.glyph(piece)?.let { glyph ->
                                 PieceGlyph(glyph = glyph, isWhite = piece != null && piece.isUpperCase())
