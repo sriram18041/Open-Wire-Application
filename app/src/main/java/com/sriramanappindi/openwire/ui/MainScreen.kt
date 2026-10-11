@@ -78,10 +78,8 @@ import java.text.SimpleDateFormat
 import java.util.Locale
 import kotlinx.coroutines.launch
 
-private const val PRIVACY_POLICY_URL = "https://claude.ai/artifact/5zjf1W5UwVAbLzRd6vrBEX"
-
 /** Which top-level screen the drawer is pointed at. SUDOKU/CHESS/GKQUIZ are sub-screens of GAMES. */
-private enum class AppScreen { FEED, SAVED, GAMES, SUDOKU, CHESS, GKQUIZ }
+private enum class AppScreen { FEED, SAVED, GAMES, SUDOKU, CHESS, GKQUIZ, PRIVACY }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -115,7 +113,7 @@ fun MainScreen(viewModel: NewsViewModel) {
     // the app outright instead of returning to the feed. GAMES/SUDOKU/CHESS/
     // GKQUIZ handle their own back presses (see their own BackHandler), so
     // this one only needs to cover closing an open drawer and leaving Saved.
-    BackHandler(enabled = drawerState.isOpen || screen == AppScreen.SAVED) {
+    BackHandler(enabled = drawerState.isOpen || screen == AppScreen.SAVED || screen == AppScreen.PRIVACY) {
         if (drawerState.isOpen) {
             scope.launch { drawerState.close() }
         } else {
@@ -255,6 +253,7 @@ fun MainScreen(viewModel: NewsViewModel) {
             AppScreen.SUDOKU -> SudokuScreen(onBack = { screen = AppScreen.GAMES })
             AppScreen.CHESS -> ChessPuzzleScreen(onBack = { screen = AppScreen.GAMES })
             AppScreen.GKQUIZ -> GkQuizScreen(onBack = { screen = AppScreen.GAMES })
+            AppScreen.PRIVACY -> PrivacyPolicyScreen(onBack = { screen = AppScreen.FEED })
             else -> Scaffold(
             topBar = {
                 Column {
@@ -402,7 +401,8 @@ fun MainScreen(viewModel: NewsViewModel) {
             initiallyEnabled = viewModel.notificationsEnabled(),
             onToggleNotifications = viewModel::setNotificationsEnabled,
             onOpenPrivacyPolicy = {
-                context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(PRIVACY_POLICY_URL)))
+                showSettings = false
+                screen = AppScreen.PRIVACY
             },
             onDismiss = { showSettings = false }
         )
