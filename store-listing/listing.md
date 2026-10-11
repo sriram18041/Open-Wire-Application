@@ -31,11 +31,18 @@ BUILT FOR ACTUALLY READING THE NEWS
 • Search across every headline at once
 • Pull to refresh, or let it refresh itself in the background
 • Works offline from your last refresh — no blank screen on the subway
+• Save stories to read later
+• "How others are covering this" — compare framing across sources on the
+  same story
+• Home screen widget, configurable to one category or everything
+• A daily sudoku, a daily one-move chess puzzle, and a daily GK quiz,
+  each with its own streak
 
 PRIVACY
 Open Wire doesn't require an account, doesn't track you across apps, and
-doesn't sell data — there's no data to sell. See the privacy policy link
-on this listing for specifics.
+doesn't sell data — there's no data to sell. Coarse location is used once
+to set your default region, and is never sent anywhere. Full policy is
+shown in-app under Settings, and at the link on this listing.
 
 ## Category
 News & Magazines
@@ -44,8 +51,26 @@ News & Magazines
 Everyone (news content; no user-generated content, no in-app purchases)
 
 ## Privacy policy URL
-(fill in once the privacy-policy artifact is published and shared — see
-PRIVACY_POLICY.md in this folder for the source text)
+https://claude.ai/artifact/5zjf1W5UwVAbLzRd6vrBEX
+(This is the hosted copy Play Console requires a URL for; the app itself
+shows the same text in-app under Settings → Privacy policy, with no
+external link needed to read it. See the "Optional: host it yourself"
+note in the publishing walkthrough if you'd rather this URL live on a
+domain you control, e.g. GitHub Pages.)
 
 ## Contact email
-(your email — required by Play Console for the listing)
+ram18042001@gmail.com
+
+## Permissions declared (for the Data Safety form)
+- ACCESS_COARSE_LOCATION — used once on first launch to set a default
+  country; not shared with any party; user can deny with no functional
+  loss beyond manual region selection.
+- POST_NOTIFICATIONS — only requested if the user turns on new-story
+  alerts in Settings; generated on-device from the user's own feeds.
+- INTERNET / ACCESS_NETWORK_STATE — to fetch public RSS/Atom feeds and
+  open article links.
+- Firebase (Crashlytics/Analytics, if included in the release build) —
+  anonymous crash reports and aggregate, non-identifying usage data; not
+  linked to any user identity since no account exists.
+Data collected: none that is shared with third parties or sold. Data
+processed on-device only, per the policy above.
