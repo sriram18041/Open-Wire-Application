@@ -1,5 +1,6 @@
 package com.sriramanappindi.openwire.ui
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -39,6 +40,7 @@ fun GamesScreen(
     onOpenChess: () -> Unit,
     onOpenGkQuiz: () -> Unit
 ) {
+    BackHandler(onBack = onBack)
     val context = LocalContext.current
     val sudokuSolved = SudokuStore.isSolvedToday(context)
     val chessSolved = ChessPuzzleStore.isSolvedToday(context)

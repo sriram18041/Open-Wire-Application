@@ -2,6 +2,7 @@ package com.sriramanappindi.openwire.ui
 
 import android.content.Intent
 import android.net.Uri
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -94,6 +95,19 @@ fun MainScreen(viewModel: NewsViewModel) {
     val listState = rememberLazyListState()
     var screen by remember { mutableStateOf(AppScreen.FEED) }
     var showSettings by remember { mutableStateOf(false) }
+
+    // Without this, the system back button falls through to the Activity's
+    // default behavior — which, since there's no other back stack, closes
+    // the app outright instead of returning to the feed. GAMES/SUDOKU/CHESS/
+    // GKQUIZ handle their own back presses (see their own BackHandler), so
+    // this one only needs to cover closing an open drawer and leaving Saved.
+    BackHandler(enabled = drawerState.isOpen || screen == AppScreen.SAVED) {
+        if (drawerState.isOpen) {
+            scope.launch { drawerState.close() }
+        } else {
+            screen = AppScreen.FEED
+        }
+    }
 
     val displayedStories = if (screen == AppScreen.SAVED) {
         val q = state.query.trim().lowercase()

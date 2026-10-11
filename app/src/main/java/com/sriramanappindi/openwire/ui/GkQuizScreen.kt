@@ -1,5 +1,6 @@
 package com.sriramanappindi.openwire.ui
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -36,6 +37,7 @@ import com.sriramanappindi.openwire.games.localEpochDay
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun GkQuizScreen(onBack: () -> Unit) {
+    BackHandler(onBack = onBack)
     val context = LocalContext.current
     val epochDay = remember { localEpochDay() }
     val questions = remember(epochDay) { GkQuiz.forDay(epochDay) }

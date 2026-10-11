@@ -1,5 +1,6 @@
 package com.sriramanappindi.openwire.ui
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -43,6 +44,7 @@ import com.sriramanappindi.openwire.games.localEpochDay
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SudokuScreen(onBack: () -> Unit) {
+    BackHandler(onBack = onBack)
     val context = LocalContext.current
     val epochDay = remember { localEpochDay() }
     val puzzle = remember(epochDay) { SudokuGenerator.forDay(epochDay) }

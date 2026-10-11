@@ -1,5 +1,6 @@
 package com.sriramanappindi.openwire.ui
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
@@ -9,6 +10,7 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
@@ -50,6 +52,7 @@ private fun boardAfter(fen: String, movesUci: List<String>, count: Int): Array<C
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ChessPuzzleScreen(onBack: () -> Unit) {
+    BackHandler(onBack = onBack)
     val context = LocalContext.current
     val epochDay = remember { localEpochDay() }
     val puzzle = remember(epochDay) { ChessPuzzles.forDay(epochDay) }
@@ -176,13 +179,40 @@ private fun ChessBoardView(
                                 .clickable { onTap(idx) },
                             contentAlignment = Alignment.Center
                         ) {
-                            ChessBoard.glyph(board[idx])?.let { glyph ->
-                                Text(glyph, fontSize = 30.sp)
+                            val piece = board[idx]
+                            ChessBoard.glyph(piece)?.let { glyph ->
+                                PieceGlyph(glyph = glyph, isWhite = piece != null && piece.isUpperCase())
                             }
                         }
                     }
                 }
             }
         }
+    }
+}
+
+/**
+ * Renders one piece glyph with an explicit fill color per side, outlined in
+ * the opposite tone. Without this, Text() falls back to the theme's default
+ * content color for every glyph — so on this app's dark theme, white pieces
+ * (♔♕♖♗♘♙) and black pieces (♚♛♜♝♞♟) both rendered in the same light color
+ * and were indistinguishable. The outline (four 1dp-offset copies in the
+ * opposite tone, drawn under the fill) also keeps each piece visible
+ * regardless of which square color it sits on.
+ */
+@Composable
+private fun PieceGlyph(glyph: String, isWhite: Boolean) {
+    val fillColor = if (isWhite) Color(0xFFFAFAFA) else Color(0xFF151515)
+    val outlineColor = if (isWhite) Color(0xFF151515) else Color(0xFFFAFAFA)
+    Box(contentAlignment = Alignment.Center) {
+        listOf(-1.dp to -1.dp, -1.dp to 1.dp, 1.dp to -1.dp, 1.dp to 1.dp).forEach { (dx, dy) ->
+            Text(
+                glyph,
+                fontSize = 30.sp,
+                color = outlineColor,
+                modifier = Modifier.offset(x = dx, y = dy)
+            )
+        }
+        Text(glyph, fontSize = 30.sp, color = fillColor)
     }
 }
