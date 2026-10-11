@@ -76,8 +76,8 @@ import kotlinx.coroutines.launch
 
 private const val PRIVACY_POLICY_URL = "https://claude.ai/artifact/5zjf1W5UwVAbLzRd6vrBEX"
 
-/** Which top-level screen the drawer is pointed at. SUDOKU/CHESS are sub-screens of GAMES. */
-private enum class AppScreen { FEED, SAVED, GAMES, SUDOKU, CHESS }
+/** Which top-level screen the drawer is pointed at. SUDOKU/CHESS/GKQUIZ are sub-screens of GAMES. */
+private enum class AppScreen { FEED, SAVED, GAMES, SUDOKU, CHESS, GKQUIZ }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -157,7 +157,7 @@ fun MainScreen(viewModel: NewsViewModel) {
                     modifier = Modifier.padding(horizontal = 12.dp, vertical = 3.dp)
                 )
                 NavigationDrawerItem(
-                    selected = screen == AppScreen.GAMES || screen == AppScreen.SUDOKU || screen == AppScreen.CHESS,
+                    selected = screen == AppScreen.GAMES || screen == AppScreen.SUDOKU || screen == AppScreen.CHESS || screen == AppScreen.GKQUIZ,
                     icon = { Text("🎮", fontSize = 18.sp) },
                     label = { Text("Games", style = MaterialTheme.typography.bodyMedium) },
                     onClick = {
@@ -221,10 +221,12 @@ fun MainScreen(viewModel: NewsViewModel) {
             AppScreen.GAMES -> GamesScreen(
                 onBack = { screen = AppScreen.FEED },
                 onOpenSudoku = { screen = AppScreen.SUDOKU },
-                onOpenChess = { screen = AppScreen.CHESS }
+                onOpenChess = { screen = AppScreen.CHESS },
+                onOpenGkQuiz = { screen = AppScreen.GKQUIZ }
             )
             AppScreen.SUDOKU -> SudokuScreen(onBack = { screen = AppScreen.GAMES })
             AppScreen.CHESS -> ChessPuzzleScreen(onBack = { screen = AppScreen.GAMES })
+            AppScreen.GKQUIZ -> GkQuizScreen(onBack = { screen = AppScreen.GAMES })
             else -> Scaffold(
             topBar = {
                 Column {

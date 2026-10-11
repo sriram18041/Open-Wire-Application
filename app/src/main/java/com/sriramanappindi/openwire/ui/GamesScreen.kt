@@ -21,18 +21,30 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.sriramanappindi.openwire.games.ChessPuzzleStore
+import com.sriramanappindi.openwire.games.GkQuiz
+import com.sriramanappindi.openwire.games.GkQuizStore
 import com.sriramanappindi.openwire.games.SudokuStore
+import com.sriramanappindi.openwire.games.localEpochDay
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun GamesScreen(onBack: () -> Unit, onOpenSudoku: () -> Unit, onOpenChess: () -> Unit) {
+fun GamesScreen(
+    onBack: () -> Unit,
+    onOpenSudoku: () -> Unit,
+    onOpenChess: () -> Unit,
+    onOpenGkQuiz: () -> Unit
+) {
     val context = LocalContext.current
     val sudokuSolved = SudokuStore.isSolvedToday(context)
     val chessSolved = ChessPuzzleStore.isSolvedToday(context)
+    val gkSolved = GkQuizStore.isSolvedToday(context)
+    val gkScore = if (gkSolved) GkQuizStore.scoreToday(context) else 0
+    val gkQuestionCount = remember { GkQuiz.forDay(localEpochDay()).size }
 
     Scaffold(
         topBar = {
@@ -68,12 +80,27 @@ fun GamesScreen(onBack: () -> Unit, onOpenSudoku: () -> Unit, onOpenChess: () ->
                 solved = chessSolved,
                 onClick = onOpenChess
             )
+            GameCard(
+                emoji = "🧠",
+                title = "GK Quiz",
+                subtitle = "$gkQuestionCount quick general-knowledge questions, new every day",
+                solved = gkSolved,
+                solvedSubtitle = "Scored $gkScore / $gkQuestionCount today — come back tomorrow",
+                onClick = onOpenGkQuiz
+            )
         }
     }
 }
 
 @Composable
-private fun GameCard(emoji: String, title: String, subtitle: String, solved: Boolean, onClick: () -> Unit) {
+private fun GameCard(
+    emoji: String,
+    title: String,
+    subtitle: String,
+    solved: Boolean,
+    onClick: () -> Unit,
+    solvedSubtitle: String = "Solved today — come back tomorrow"
+) {
     Card(
         onClick = onClick,
         modifier = Modifier.fillMaxWidth(),
@@ -83,7 +110,7 @@ private fun GameCard(emoji: String, title: String, subtitle: String, solved: Boo
         Column(modifier = Modifier.padding(18.dp)) {
             Text("$emoji  $title" + if (solved) "  ✅" else "", style = MaterialTheme.typography.titleMedium)
             Text(
-                if (solved) "Solved today — come back tomorrow" else subtitle,
+                if (solved) solvedSubtitle else subtitle,
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = 4.dp)
