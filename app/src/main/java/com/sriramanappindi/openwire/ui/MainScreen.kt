@@ -79,7 +79,7 @@ import java.util.Locale
 import kotlinx.coroutines.launch
 
 /** Which top-level screen the drawer is pointed at. SUDOKU/CHESS/GKQUIZ are sub-screens of GAMES. */
-private enum class AppScreen { FEED, SAVED, GAMES, SUDOKU, CHESS, GKQUIZ, PRIVACY }
+private enum class AppScreen { FEED, SAVED, GAMES, SUDOKU, CHESS, GKQUIZ, PRIVACY, LICENSES }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -113,7 +113,7 @@ fun MainScreen(viewModel: NewsViewModel) {
     // the app outright instead of returning to the feed. GAMES/SUDOKU/CHESS/
     // GKQUIZ handle their own back presses (see their own BackHandler), so
     // this one only needs to cover closing an open drawer and leaving Saved.
-    BackHandler(enabled = drawerState.isOpen || screen == AppScreen.SAVED || screen == AppScreen.PRIVACY) {
+    BackHandler(enabled = drawerState.isOpen || screen == AppScreen.SAVED || screen == AppScreen.PRIVACY || screen == AppScreen.LICENSES) {
         if (drawerState.isOpen) {
             scope.launch { drawerState.close() }
         } else {
@@ -254,6 +254,7 @@ fun MainScreen(viewModel: NewsViewModel) {
             AppScreen.CHESS -> ChessPuzzleScreen(onBack = { screen = AppScreen.GAMES })
             AppScreen.GKQUIZ -> GkQuizScreen(onBack = { screen = AppScreen.GAMES })
             AppScreen.PRIVACY -> PrivacyPolicyScreen(onBack = { screen = AppScreen.FEED })
+            AppScreen.LICENSES -> OpenSourceLicensesScreen(onBack = { screen = AppScreen.FEED })
             else -> Scaffold(
             topBar = {
                 Column {
@@ -403,6 +404,10 @@ fun MainScreen(viewModel: NewsViewModel) {
             onOpenPrivacyPolicy = {
                 showSettings = false
                 screen = AppScreen.PRIVACY
+            },
+            onOpenLicenses = {
+                showSettings = false
+                screen = AppScreen.LICENSES
             },
             onDismiss = { showSettings = false }
         )
@@ -722,6 +727,7 @@ private fun SettingsDialog(
     initiallyEnabled: Boolean,
     onToggleNotifications: (Boolean) -> Unit,
     onOpenPrivacyPolicy: () -> Unit,
+    onOpenLicenses: () -> Unit,
     onDismiss: () -> Unit
 ) {
     var notificationsEnabled by remember { mutableStateOf(initiallyEnabled) }
@@ -795,6 +801,15 @@ private fun SettingsDialog(
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.clickable(onClick = onOpenPrivacyPolicy)
+                )
+
+                Text(
+                    "Open-source licenses",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier
+                        .padding(top = 12.dp)
+                        .clickable(onClick = onOpenLicenses)
                 )
 
                 Spacer(Modifier.height(18.dp))
