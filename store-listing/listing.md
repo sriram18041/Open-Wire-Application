@@ -61,6 +61,18 @@ domain you control, e.g. GitHub Pages.)
 ## Contact email
 ram18042001@gmail.com
 
+## Release notes — v1.0.0 (initial release, max 500 characters)
+Open Wire is here — a news reader with no login, no paywall, and no
+algorithm deciding what you see.
+
+• Live headlines across World, Politics, Business, Tech, Science, Sports,
+  and Entertainment
+• Save stories, search, and read offline
+• See how different outlets are framing the same story
+• A home screen widget you can set to one category or everything
+• Daily sudoku, a one-move chess puzzle, and a GK quiz — each with its
+  own streak
+
 ## Permissions declared (for the Data Safety form)
 - ACCESS_COARSE_LOCATION — used once on first launch to set a default
   country; not shared with any party; user can deny with no functional
